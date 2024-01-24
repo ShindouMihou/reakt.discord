@@ -25,10 +25,12 @@ fun onEvent(event: NexusCommandEvent) {
         render {
             Embed {
                 Title("Rendered with Reakt")
-                SpacedBody(
-                    p("This message was rendered with Reakt."),
-                    p("The button has been clicked ") + bold("$clicks times.")
-                )
+                Embed(spaced = true) {
+                    Body {
+                        p("This message was rendered with Reakt.").append
+                        (p("The button has been clicked ") + bold("$clicks times.")).append
+                    }
+                }
                 Color(java.awt.Color.YELLOW)
                 Timestamp(Instant.now())
             }

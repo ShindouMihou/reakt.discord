@@ -1,7 +1,7 @@
 package pw.mihou.reakt.elements
 
 import pw.mihou.reakt.Reakt
-import pw.mihou.reakt.styles.TextStyles
+import pw.mihou.reakt.styles.BodyConstructor
 
 fun Reakt.Component.Text(text: Text.() -> Unit) {
     val element = Text()
@@ -10,17 +10,11 @@ fun Reakt.Component.Text(text: Text.() -> Unit) {
     contents = element.content
 }
 
-class Text: TextStyles {
+class Text {
     internal var content: String = ""
-    fun Body(vararg nodes: String)  {
-        content = nodes.joinToString("")
-    }
-    fun SpacedBody(vararg nodes: String) {
-        content = nodes.joinToString("\n")
-    }
-    fun Body(spaced: Boolean = false, builder: MutableList<String>.() -> Unit) {
-        val backing = mutableListOf<String>()
-        builder(backing)
-        content = if (spaced) backing.joinToString("\n") else backing.joinToString()
+    fun Body(spaced: Boolean = false, builder: BodyConstructor.() -> Unit) {
+        val constructor = BodyConstructor(autoAppendNewLines = spaced)
+        builder(constructor)
+        content = constructor.content
     }
 }

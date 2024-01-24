@@ -5,7 +5,7 @@ import org.javacord.api.entity.message.MessageAuthor
 import org.javacord.api.entity.message.embed.EmbedBuilder
 import org.javacord.api.entity.user.User
 import pw.mihou.reakt.Reakt
-import pw.mihou.reakt.styles.TextStyles
+import pw.mihou.reakt.styles.BodyConstructor
 import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.File
@@ -19,32 +19,25 @@ fun Reakt.Component.Embed(embed: Embed.() -> Unit) {
     embeds.add(element.embed)
 }
 
-class Embed: TextStyles {
+class Embed {
     internal val embed = EmbedBuilder()
 
     fun Title(text: String) {
         embed.setTitle(text)
     }
 
-    fun Body(vararg nodes: String) {
-        embed.setDescription(nodes.joinToString(""))
+    fun Body(spaced: Boolean = false, builder: BodyConstructor.() -> Unit) {
+        val constructor = BodyConstructor(autoAppendNewLines = spaced)
+        builder(constructor)
+        embed.setDescription(constructor.content)
     }
-    fun SpacedBody(vararg nodes: String) {
-        embed.setDescription(nodes.joinToString("\n"))
+
+    fun Field(name: String, inline: Boolean = false, spaced: Boolean = false, builder: BodyConstructor.() -> Unit) {
+        val constructor = BodyConstructor(autoAppendNewLines = spaced)
+        builder(constructor)
+        embed.addField(name, constructor.content, inline)
     }
-    fun Body(spaced: Boolean = false, builder: MutableList<String>.() -> Unit) {
-        val backing = mutableListOf<String>()
-        builder(backing)
-        embed.setDescription(if (spaced) backing.joinToString("\n") else backing.joinToString())
-    }
-    fun Field(name: String, inline: Boolean = false, vararg nodes: String) {
-        embed.addField(name, nodes.joinToString(""), inline)
-    }
-    fun Field(name: String, inline: Boolean = false, spaced: Boolean = false, builder: MutableList<String>.() -> Unit) {
-        val backing = mutableListOf<String>()
-        builder(backing)
-        embed.addField(name, if (spaced) backing.joinToString("\n") else backing.joinToString(), inline)
-    }
+
     fun Image(url: String) {
         embed.setImage(url)
     }
