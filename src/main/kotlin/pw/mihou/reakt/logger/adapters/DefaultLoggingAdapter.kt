@@ -3,7 +3,6 @@ package pw.mihou.reakt.logger.adapters
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import pw.mihou.reakt.Reakt
-import pw.mihou.reakt.reakt
 import pw.mihou.reakt.logger.LoggingAdapter
 
 

@@ -173,7 +173,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             try {
                 it(message)
             } catch (err: Exception) {
-                logger.error("An uncaught exception was received by Nexus.R's update subscription dispatcher with the following stacktrace.", err)
+                logger.error("An uncaught exception was received by Reakt's update subscription dispatcher with the following stacktrace.", err)
             }
         }
     }
@@ -243,7 +243,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
             this.rendered = true
         } catch (err: Exception) {
-            logger.error("An uncaught exception was received by Nexus.R's renderer with the following stacktrace.", err)
+            logger.error("An uncaught exception was received by Reakt's renderer with the following stacktrace.", err)
         }
     }
 
@@ -256,7 +256,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 try {
                     it()
                 } catch (err: Exception) {
-                    logger.error("An uncaught exception was received by Nexus.R's initial render subscription dispatcher with the following stacktrace.", err)
+                    logger.error("An uncaught exception was received by Reakt's initial render subscription dispatcher with the following stacktrace.", err)
                 }
             }
         }
@@ -265,7 +265,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             try {
                 it()
             } catch (err: Exception) {
-                logger.error("An uncaught exception was received by Nexus.R's render subscription dispatcher with the following stacktrace.", err)
+                logger.error("An uncaught exception was received by Reakt's render subscription dispatcher with the following stacktrace.", err)
             }
         }
 
@@ -316,7 +316,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                         val view = apply(component)
                         this.unsubscribe = view.render(interactionUpdater, api)
                         interactionUpdater.update().exceptionally {
-                            logger.error("Failed to re-render message using Nexus.R with the following stacktrace.", it)
+                            logger.error("Failed to re-render message using Reakt with the following stacktrace.", it)
                             return@exceptionally null
                         }.thenAccept(::acknowledgeUpdate)
                     } else {
@@ -326,7 +326,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                             val view = apply(component)
                             this.unsubscribe = view.render(updater, api)
                             updater.replaceMessage().exceptionally {
-                                logger.error("Failed to re-render message using Nexus.R with the following stacktrace.", it)
+                                logger.error("Failed to re-render message using Reakt with the following stacktrace.", it)
                                 return@exceptionally null
                             }.thenAccept(::acknowledgeUpdate)
                         }
@@ -340,7 +340,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 }
                 mutex.unlock()
             } catch (err: Exception) {
-                logger.error("Failed to re-render message using Nexus.R with the following stacktrace.", err)
+                logger.error("Failed to re-render message using Reakt with the following stacktrace.", err)
             }
         }
         expansions.add(stateUnsubscribe)
@@ -602,7 +602,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     try {
                         it(oldValue, value)
                     } catch (err: Exception) {
-                        logger.error("An uncaught exception was received by Nexus.R's writable subscriptions with the following stacktrace.", err)
+                        logger.error("An uncaught exception was received by Reakt's writable subscriptions with the following stacktrace.", err)
                     }
                 }
             }

@@ -8,12 +8,12 @@ import org.javacord.api.entity.message.component.SelectMenuOption
 import org.javacord.api.entity.message.component.SelectMenuOptionBuilder
 import org.javacord.api.event.interaction.SelectMenuChooseEvent
 import org.javacord.api.listener.interaction.SelectMenuChooseListener
-import pw.mihou.nexus.core.assignment.NexusUuidAssigner
 import pw.mihou.reakt.Reakt
+import pw.mihou.reakt.uuid.UuidGenerator
 
 fun Reakt.Component.SelectMenu(
     componentType: ComponentType,
-    customId: String = NexusUuidAssigner.request(),
+    customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
     maximumValues: Int = 1,
     disabled: Boolean = false,
@@ -43,7 +43,7 @@ fun Reakt.Component.SelectMenu(
 fun Reakt.Component.ChannelSelectMenu(
     types: Set<ChannelType>,
     placeholder: String? = null,
-    customId: String = NexusUuidAssigner.request(),
+    customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
     maximumValues: Int = 1,
     disabled: Boolean = false,
@@ -62,7 +62,7 @@ fun Reakt.Component.ChannelSelectMenu(
 
 fun Reakt.Component.ChannelSelectMenu(
     placeholder: String? = null,
-    customId: String = NexusUuidAssigner.request(),
+    customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
     maximumValues: Int = 1,
     disabled: Boolean = false,
@@ -80,7 +80,7 @@ fun Reakt.Component.ChannelSelectMenu(
 
 fun Reakt.Component.UserSelectMenu(
     placeholder: String? = null,
-    customId: String = NexusUuidAssigner.request(),
+    customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
     maximumValues: Int = 1,
     disabled: Boolean = false,
@@ -98,7 +98,7 @@ fun Reakt.Component.UserSelectMenu(
 
 fun Reakt.Component.MentionableSelectMenu(
     placeholder: String? = null,
-    customId: String = NexusUuidAssigner.request(),
+    customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
     maximumValues: Int = 1,
     disabled: Boolean = false,
@@ -117,7 +117,7 @@ fun Reakt.Component.MentionableSelectMenu(
 fun Reakt.Component.SelectMenu(
     options: List<SelectMenuOption>,
     placeholder: String? = null,
-    customId: String = NexusUuidAssigner.request(),
+    customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
     maximumValues: Int = 1,
     disabled: Boolean = false,

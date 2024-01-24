@@ -4,8 +4,8 @@ import org.javacord.api.entity.message.component.ButtonBuilder
 import org.javacord.api.entity.message.component.ButtonStyle
 import org.javacord.api.event.interaction.ButtonClickEvent
 import org.javacord.api.listener.interaction.ButtonClickListener
-import pw.mihou.nexus.core.assignment.NexusUuidAssigner
 import pw.mihou.reakt.Reakt
+import pw.mihou.reakt.uuid.UuidGenerator
 
 fun Reakt.Component.PrimaryButton(
     label: String,
@@ -58,7 +58,7 @@ fun Reakt.Component.Button(
     button.setDisabled(disabled)
 
     val uuid = customId ?: run {
-        val id = NexusUuidAssigner.request()
+        val id = UuidGenerator.request()
         uuids.add(id)
         return@run id
     }
