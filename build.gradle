@@ -1,0 +1,29 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.9.0'
+    id 'java'
+}
+
+group = 'pw.mihou'
+version = '1.0-SNAPSHOT'
+description = "Formerly Nexus.R, Reakt Discord is an Javacord rendering overlay that makes building interactive Discord " +
+        "bots incredibly simpler by introducing web concepts such as states and reactivity onto Discord bots."
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4"
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.6.4'
+    implementation 'org.javacord:javacord:3.8.0'
+    implementation 'org.slf4j:slf4j-api:2.0.3'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+kotlin {
+    jvmToolchain(17)
+}
