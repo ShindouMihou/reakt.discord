@@ -9,6 +9,7 @@ import org.javacord.api.entity.message.MessageBuilder
 import org.javacord.api.entity.message.MessageUpdater
 import org.javacord.api.entity.message.component.ActionRow
 import org.javacord.api.entity.message.component.LowLevelComponent
+import org.javacord.api.entity.message.embed.Embed
 import org.javacord.api.entity.message.embed.EmbedBuilder
 import org.javacord.api.interaction.callback.InteractionOriginalResponseUpdater
 import org.javacord.api.listener.GloballyAttachableListener
@@ -666,8 +667,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    class Component internal constructor(private val constructor: ComponentConstructor,
-                                         private val parent: View) {
+    class Component internal constructor(private val constructor: ComponentConstructor) {
         /**
          * [shouldRerender] declares whether the component should re-render when [invoke] is invoked
          * one more time. By default, it checks whether the component's props have changed or not, and
@@ -685,18 +685,19 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
 
-        private var render: (View.() -> Unit)? = null
-        private var props: Map<String, Any> = mapOf()
+        internal var render: (Document.() -> Unit)? = null
+        internal var props: Map<String, Any> = mapOf()
 
         private var unsubscribes = mutableListOf<Unsubscribe>()
 
+        internal var document = Document()
         private var constructed = false
 
         /**
          * [render] defines how the component should be rendered.
          */
-        fun render(view: View.() -> Unit) {
-            this.render = view
+        fun render(document: Document.() -> Unit) {
+            this.render = document
         }
 
         /**
@@ -781,13 +782,13 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         private fun rerender() {
             synchronized(this) {
-                val view = View(parent)
+                document = Document()
                 val render = render ?: throw NoRenderFoundException
 
                 for (beforeMountListener in beforeMountListeners) {
                     beforeMountListener()
                 }
-                render(view)
+                render(document)
                 for (afterMountListener in afterMountListeners) {
                     coroutine {
                         afterMountListener()
@@ -821,18 +822,68 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    /**
-     * An internal class of [Reakt]. You do not need to touch this at all, and it is not recommended to even create
-     * this by yourself as it will do nothing.
-     */
-    class View internal constructor(parent: View? = null) {
+    class StackElement internal constructor() {
+        internal var embed: EmbedBuilder? = null
+        internal var component: LowLevelComponent? = null
+        internal var listener: GloballyAttachableListener? = null
+        internal var uuid: String? = null
+        internal var textContent: String? = null
+
+        fun append(document: Document) {
+            document.stack += this
+        }
+
+        fun render(view: View) {
+            val embed = embed
+            val component =  component
+            val listener = listener
+            val uuid = uuid
+            val textContent = textContent
+
+            if (embed != null) {
+                view.embeds += embed
+            }
+
+            if (component != null) {
+                view.components += component
+            }
+
+            if (listener != null) {
+                view.listeners += listener
+            }
+
+            if (uuid != null) {
+                view.uuids += uuid
+            }
+
+            if (textContent != null) {
+                view.contents = textContent
+            }
+        }
+    }
+
+    class Document internal constructor() {
+        internal var stack = mutableListOf<StackElement>()
+
+        internal fun stack(constructor: StackElement.() -> Unit) {
+            val element = StackElement()
+            constructor(element)
+            this.stack += element
+        }
+
+        fun component(constructor: Component.() -> Unit): Component {
+            return Component(constructor)
+        }
+    }
+
+    class View internal constructor() {
         internal var embeds: MutableList<EmbedBuilder> = mutableListOf()
         internal var contents: String? = null
         internal var components: MutableList<LowLevelComponent> = mutableListOf()
         internal var listeners: MutableList<GloballyAttachableListener> = mutableListOf()
         internal var uuids: MutableList<String> = mutableListOf()
 
-        internal val reference: View = parent ?: this
+        internal var reaktComponents = mutableListOf<Component>()
 
         private fun attachListeners(api: DiscordApi): Unsubscribe {
             val listenerManagers = listeners.map { api.addListener(it) }
@@ -882,7 +933,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
 
         fun component(constructor: Component.() -> Unit): Component {
-            return Component(constructor, reference)
+            return Component(constructor)
         }
 
         fun render(api: DiscordApi): Pair<Unsubscribe, ReaktMessage> {

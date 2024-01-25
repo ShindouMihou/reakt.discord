@@ -11,7 +11,7 @@ import org.javacord.api.listener.interaction.SelectMenuChooseListener
 import pw.mihou.reakt.Reakt
 import pw.mihou.reakt.uuid.UuidGenerator
 
-fun Reakt.View.SelectMenu(
+fun Reakt.Document.SelectMenu(
     componentType: ComponentType,
     customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
@@ -19,28 +19,35 @@ fun Reakt.View.SelectMenu(
     disabled: Boolean = false,
     onSelect: ((event: SelectMenuChooseEvent) -> Unit)? = null,
     selectMenu: SelectMenu.() -> Unit
-) {
-    val element = SelectMenu(
-        SelectMenuBuilder(componentType, customId)
-            .setDisabled(disabled)
-            .setMaximumValues(maximumValues)
-            .setMinimumValues(minimumValues))
-    selectMenu(element)
+) =  component {
+    render {
+        // @native directly injects a select menu into the stack.
+        document.stack {
+            val element = SelectMenu(
+                SelectMenuBuilder(componentType, customId)
+                    .setDisabled(disabled)
+                    .setMaximumValues(maximumValues)
+                    .setMinimumValues(minimumValues))
+            selectMenu(element)
 
-    if (onSelect != null) {
-        reference.listeners += SelectMenuChooseListener {
-            if (it.selectMenuInteraction.customId != customId) {
-                return@SelectMenuChooseListener
+            if (onSelect != null) {
+                listener = SelectMenuChooseListener {
+                    if (it.selectMenuInteraction.customId != customId) {
+                        return@SelectMenuChooseListener
+                    }
+
+                    onSelect(it)
+                }
+
+                uuid = customId
             }
 
-            onSelect(it)
+            component = element.selectMenu.build()
         }
     }
+}() // @note auto-invoke component upon creation.
 
-    reference.components += element.selectMenu.build()
-}
-
-fun Reakt.View.ChannelSelectMenu(
+fun Reakt.Document.ChannelSelectMenu(
     types: Set<ChannelType>,
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),
@@ -60,7 +67,7 @@ fun Reakt.View.ChannelSelectMenu(
     placeholder?.let { Placeholder(it) }
 }
 
-fun Reakt.View.ChannelSelectMenu(
+fun Reakt.Document.ChannelSelectMenu(
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
@@ -78,7 +85,7 @@ fun Reakt.View.ChannelSelectMenu(
     placeholder?.let { Placeholder(it) }
 }
 
-fun Reakt.View.UserSelectMenu(
+fun Reakt.Document.UserSelectMenu(
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
@@ -96,7 +103,7 @@ fun Reakt.View.UserSelectMenu(
     placeholder?.let { Placeholder(it) }
 }
 
-fun Reakt.View.MentionableSelectMenu(
+fun Reakt.Document.MentionableSelectMenu(
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
@@ -114,7 +121,7 @@ fun Reakt.View.MentionableSelectMenu(
     placeholder?.let { Placeholder(it) }
 }
 
-fun Reakt.View.SelectMenu(
+fun Reakt.Document.SelectMenu(
     options: List<SelectMenuOption>,
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),

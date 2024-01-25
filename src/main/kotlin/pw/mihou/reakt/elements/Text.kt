@@ -3,12 +3,17 @@ package pw.mihou.reakt.elements
 import pw.mihou.reakt.Reakt
 import pw.mihou.reakt.styles.BodyConstructor
 
-fun Reakt.View.Text(text: Text.() -> Unit) {
-    val element = Text()
-    text(element)
+fun Reakt.Document.Text(text: Text.() -> Unit) = component {
+    render {
+        // @native directly injects a text element into the stack.
+        document.stack {
+            val element = Text()
+            text(element)
 
-    reference.contents = element.content
-}
+            textContent = element.content
+        }
+    }
+}() // @note auto-invoke component upon creation.
 
 class Text {
     internal var content: String = ""
