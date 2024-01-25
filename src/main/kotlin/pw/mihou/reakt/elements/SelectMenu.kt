@@ -11,7 +11,7 @@ import org.javacord.api.listener.interaction.SelectMenuChooseListener
 import pw.mihou.reakt.Reakt
 import pw.mihou.reakt.uuid.UuidGenerator
 
-fun Reakt.Component.SelectMenu(
+fun Reakt.View.SelectMenu(
     componentType: ComponentType,
     customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
@@ -28,7 +28,7 @@ fun Reakt.Component.SelectMenu(
     selectMenu(element)
 
     if (onSelect != null) {
-        listeners += SelectMenuChooseListener {
+        reference.listeners += SelectMenuChooseListener {
             if (it.selectMenuInteraction.customId != customId) {
                 return@SelectMenuChooseListener
             }
@@ -37,10 +37,10 @@ fun Reakt.Component.SelectMenu(
         }
     }
 
-    components += element.selectMenu.build()
+    reference.components += element.selectMenu.build()
 }
 
-fun Reakt.Component.ChannelSelectMenu(
+fun Reakt.View.ChannelSelectMenu(
     types: Set<ChannelType>,
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),
@@ -60,7 +60,7 @@ fun Reakt.Component.ChannelSelectMenu(
     placeholder?.let { Placeholder(it) }
 }
 
-fun Reakt.Component.ChannelSelectMenu(
+fun Reakt.View.ChannelSelectMenu(
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
@@ -78,7 +78,7 @@ fun Reakt.Component.ChannelSelectMenu(
     placeholder?.let { Placeholder(it) }
 }
 
-fun Reakt.Component.UserSelectMenu(
+fun Reakt.View.UserSelectMenu(
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
@@ -96,7 +96,7 @@ fun Reakt.Component.UserSelectMenu(
     placeholder?.let { Placeholder(it) }
 }
 
-fun Reakt.Component.MentionableSelectMenu(
+fun Reakt.View.MentionableSelectMenu(
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
@@ -114,7 +114,7 @@ fun Reakt.Component.MentionableSelectMenu(
     placeholder?.let { Placeholder(it) }
 }
 
-fun Reakt.Component.SelectMenu(
+fun Reakt.View.SelectMenu(
     options: List<SelectMenuOption>,
     placeholder: String? = null,
     customId: String = UuidGenerator.request(),

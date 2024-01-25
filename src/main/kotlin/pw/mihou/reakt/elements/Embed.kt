@@ -12,11 +12,11 @@ import java.io.File
 import java.io.InputStream
 import java.time.Instant
 
-fun Reakt.Component.Embed(embed: Embed.() -> Unit) {
+fun Reakt.View.Embed(embed: Embed.() -> Unit) {
     val element = Embed()
     embed(element)
 
-    embeds.add(element.embed)
+    reference.embeds.add(element.embed)
 }
 
 class Embed {

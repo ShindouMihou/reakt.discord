@@ -3,11 +3,11 @@ package pw.mihou.reakt.elements
 import pw.mihou.reakt.Reakt
 import pw.mihou.reakt.styles.BodyConstructor
 
-fun Reakt.Component.Text(text: Text.() -> Unit) {
+fun Reakt.View.Text(text: Text.() -> Unit) {
     val element = Text()
     text(element)
 
-    contents = element.content
+    reference.contents = element.content
 }
 
 class Text {

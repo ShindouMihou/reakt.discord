@@ -7,7 +7,7 @@ import org.javacord.api.listener.interaction.ButtonClickListener
 import pw.mihou.reakt.Reakt
 import pw.mihou.reakt.uuid.UuidGenerator
 
-fun Reakt.Component.PrimaryButton(
+fun Reakt.View.PrimaryButton(
     label: String,
     customId: String? = null,
     emoji: String? = null,
@@ -15,7 +15,7 @@ fun Reakt.Component.PrimaryButton(
     onClick: ((event: ButtonClickEvent) -> Unit)? = null
 ) = Button(ButtonStyle.PRIMARY, label, customId, emoji, disabled, onClick)
 
-fun Reakt.Component.SecondaryButton(
+fun Reakt.View.SecondaryButton(
     label: String,
     customId: String? = null,
     emoji: String? = null,
@@ -23,7 +23,7 @@ fun Reakt.Component.SecondaryButton(
     onClick: ((event: ButtonClickEvent) -> Unit)? = null
 ) = Button(ButtonStyle.SECONDARY, label, customId, emoji, disabled, onClick)
 
-fun Reakt.Component.SuccessButton(
+fun Reakt.View.SuccessButton(
     label: String,
     customId: String? = null,
     emoji: String? = null,
@@ -31,7 +31,7 @@ fun Reakt.Component.SuccessButton(
     onClick: ((event: ButtonClickEvent) -> Unit)? = null
 ) = Button(ButtonStyle.SUCCESS, label, customId, emoji, disabled, onClick)
 
-fun Reakt.Component.DangerButton(
+fun Reakt.View.DangerButton(
     label: String,
     customId: String? = null,
     emoji: String? = null,
@@ -39,7 +39,7 @@ fun Reakt.Component.DangerButton(
     onClick: ((event: ButtonClickEvent) -> Unit)? = null
 ) = Button(ButtonStyle.DANGER, label, customId, emoji, disabled, onClick)
 
-fun Reakt.Component.Button(
+fun Reakt.View.Button(
     style: ButtonStyle = ButtonStyle.PRIMARY,
     label: String,
     customId: String? = null,
@@ -65,7 +65,7 @@ fun Reakt.Component.Button(
     button.setCustomId(uuid)
 
     if (onClick != null) {
-        listeners += ButtonClickListener {
+        reference.listeners += ButtonClickListener {
             if (it.buttonInteraction.customId != uuid) {
                 return@ButtonClickListener
             }
@@ -74,5 +74,5 @@ fun Reakt.Component.Button(
         }
     }
 
-    components += button.build()
+    reference.components += button.build()
 }

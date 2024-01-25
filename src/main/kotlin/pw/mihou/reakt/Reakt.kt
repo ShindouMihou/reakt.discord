@@ -19,6 +19,9 @@ import org.slf4j.LoggerFactory
 import org.slf4j.helpers.NOPLogger
 import pw.mihou.reakt.channels.Endpoint
 import pw.mihou.reakt.deferrable.ReaktMessage
+import pw.mihou.reakt.exceptions.NoRenderFoundException
+import pw.mihou.reakt.exceptions.PropTypeMismatch
+import pw.mihou.reakt.exceptions.UnknownPropException
 import pw.mihou.reakt.logger.LoggingAdapter
 import pw.mihou.reakt.logger.adapters.DefaultLoggingAdapter
 import pw.mihou.reakt.logger.adapters.FastLoggingAdapter
@@ -33,13 +36,20 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 
 typealias Subscription<T> = (oldValue: T, newValue: T) -> Unit
+typealias PlainSubscription = () -> Unit
 typealias Unsubscribe = () -> Unit
 
 typealias RenderSubscription = () -> Unit
 typealias DestroySubscription = () -> Unit
 typealias UpdateSubscription = (message: Message) -> Unit
-typealias ReactComponent = Reakt.Component.() -> Unit
+
+typealias ComponentBeforeMountSubscription = () -> Unit
+typealias ComponentAfterMountSubscription = () -> Unit
+typealias ReactView = Reakt.View.() -> Unit
+
 typealias Derive<T, K> = (T) -> K
+
+typealias Props = Map<String, Any>
 
 /**
  * [Reakt] is the React-Svelte inspired method of rendering (or sending) messages as response to various scenarios such
@@ -56,7 +66,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     internal var interactionUpdater: InteractionOriginalResponseUpdater? = null
 
     private var unsubscribe: Unsubscribe = {}
-    private var component: (Component.() -> Unit)? = null
+    private var view: (View.() -> Unit)? = null
 
     private var debounceTask: Job? = null
     private var mutex = ReentrantLock()
@@ -79,7 +89,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
     companion object {
         /**
-         * Defines how long we should wait before proceeding to re-render the component, this is intended to ensure
+         * Defines how long we should wait before proceeding to re-render the view, this is intended to ensure
          * that all other states being changed in that period is applied as well, preventing multiple unnecessary re-renders
          * which can be costly as we send HTTP requests to Discord.
          *
@@ -114,7 +124,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
-     * Subscribes a task to be ran whenever the component is being rendered, this happens on the initial render
+     * Subscribes a task to be ran whenever the view is being rendered, this happens on the initial render
      * and re-renders but takes a lower priority than the ones in [onInitialRender].
      * @param subscription the subscription to execute on render.
      */
@@ -123,8 +133,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
-     * Subscribes a task to be ran whenever the component is being rendered. This happens first before the actual
-     * component being rendered, therefore, you can use this to load data before the component is actually rendered.
+     * Subscribes a task to be ran whenever the view is being rendered. This happens first before the actual
+     * view being rendered, therefore, you can use this to load data before the view is actually rendered.
      * @param subscription the subscription to execute on first render.
      */
     fun onInitialRender(subscription: RenderSubscription) {
@@ -188,7 +198,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             destroySubscribers.forEach(DestroySubscription::invoke)
 
             unsubscribe()
-            component = null
+            view = null
             this.unsubscribe = {}
             this.destroySubscribers = mutableListOf()
             this.resultingMessage = null
@@ -208,13 +218,13 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
-     * Renders the given component, this will also be used to re-render the component onwards. Note that using two
+     * Renders the given view, this will also be used to re-render the view onwards. Note that using two
      * renders will result in the last executed render being used.
-     * @param component the component to render.
+     * @param view the view to render.
      */
-    fun render(component: ReactComponent) {
+    fun render(view: ReactView) {
         try {
-            val element = apply(component)
+            val element = apply(view)
 
             when (renderMode) {
                 RenderMode.Interaction -> {
@@ -247,9 +257,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    private fun apply(component: Component.() -> Unit): Component {
-        this.component = component
-        val element = Component()
+    private fun apply(view: View.() -> Unit): View {
+        this.view = view
+        val element = View()
 
         if (!rendered) {
             firstRenderSubscribers.forEach {
@@ -269,7 +279,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
         }
 
-        component(element)
+        view(element)
         return element
     }
 
@@ -286,7 +296,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      * and delegated variables pass their [Writable.getValue] result, so changes cannot be listened).
      *
      * @param value the initial value.
-     * @return a [Writable] with a [Subscription] that will re-render the [ReactComponent] when the state changes.
+     * @return a [Writable] with a [Subscription] that will re-render the [ReactView] when the state changes.
      */
     fun <T> writable(value: T): Writable<T> {
         val element = Writable(value)
@@ -294,7 +304,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
-     * Adds a [Subscription] that enables the [ReactComponent] to be re-rendered whenever the value of the [Writable]
+     * Adds a [Subscription] that enables the [ReactView] to be re-rendered whenever the value of the [Writable]
      * changes, this is what [writable] uses internally to react to changes.
      * @param writable the writable to subscribe.
      * @return the [Writable] with the re-render subscription attached.
@@ -303,17 +313,17 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         val stateUnsubscribe = writable.subscribe { _, _ ->
             try {
                 if (!mutex.tryLock()) return@subscribe
-                val component = this.component ?: return@subscribe
+                val render = this.view ?: return@subscribe
                 debounceTask?.cancel()
                 debounceTask = coroutine {
                     delay(debounceMillis)
                     this.unsubscribe()
 
                     debounceTask = null
-                    if (this.component == null) return@coroutine
+                    if (this.view == null) return@coroutine
                     val interactionUpdater = interactionUpdater
                     if (interactionUpdater != null) {
-                        val view = apply(component)
+                        val view = apply(render)
                         this.unsubscribe = view.render(interactionUpdater, api)
                         interactionUpdater.update().exceptionally {
                             logger.error("Failed to re-render message using Reakt with the following stacktrace.", it)
@@ -323,7 +333,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                         val message = resultingMessage
                         if (message != null) {
                             val updater = message.createUpdater()
-                            val view = apply(component)
+                            val view = apply(render)
                             this.unsubscribe = view.render(updater, api)
                             updater.replaceMessage().exceptionally {
                                 logger.error("Failed to re-render message using Reakt with the following stacktrace.", it)
@@ -508,7 +518,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     /**
      * Writable are the equivalent to state in React.js, or [writable] in Svelte (otherwise known as `$state` in Svelte Runes),
      * these are simply properties that will execute subscribed tasks whenever the property changes, enabling reactivity.
-     * [Reakt] uses this to support re-rendering the [ReactComponent] whenever a state changes, allowing developers to write
+     * [Reakt] uses this to support re-rendering the [ReactView] whenever a state changes, allowing developers to write
      * incredibly reactive yet beautifully simple code that are similar to Svelte.
      *
      * We recommend using the constructor method to create a [Writable] for use cases outside of [Reakt] scope, otherwise
@@ -590,6 +600,17 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
 
         /**
+         * Subscribes to changes to the value of the [Writable]. This is ran asynchronously after the value has
+         * been changed.
+         *
+         * @param subscription the task to execute upon a change to the value is detected.
+         * @return an [Unsubscribe] method to unsubscribe the [Subscription].
+         */
+        infix fun subscribe(subscription: PlainSubscription): Unsubscribe {
+            return subscribe { _, _ -> subscription() }
+        }
+
+        /**
          * Reacts to the change and executes all the subscriptions that were subscribed at the
          * time of execution.
          *
@@ -644,16 +665,167 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
+    class Component internal constructor(private val parent: View) {
+        /**
+         * [shouldRerender] declares whether the component should re-render when [invoke] is invoked
+         * one more time. By default, it checks whether the component's props have changed or not, and
+         * bases it on that.
+         */
+        @Volatile var shouldRerender: (old: Props, new: Props) -> Boolean = shouldRerender@{ old, new ->
+            for ((key, value) in old) {
+                val currentValue = new[key]
+                if (currentValue == null || currentValue != value) {
+                    return@shouldRerender true
+                }
+            }
+            return@shouldRerender false
+        }
+        private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
+        private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
+
+        private var render: (View.() -> Unit)? = null
+        private var props: Map<String, Any> = mapOf()
+
+        private var unsubscribes = mutableListOf<Unsubscribe>()
+
+        /**
+         * [render] defines how the component should be rendered.
+         */
+        fun render(view: View.() -> Unit) {
+            this.render = view
+        }
+
+        /**
+         * [onBeforeMount] adds a [ComponentBeforeMountSubscription] to this component that will execute the
+         * subscription right before mounting. This is similar to [onRender] but for a specific component only,
+         * this happens before the component is rendered, which means you can use this to manipulate the different
+         * values of the component.
+         */
+        fun onBeforeMount(subscription: ComponentBeforeMountSubscription) {
+            beforeMountListeners.add(subscription)
+        }
+
+        /**
+         * [onAfterMount] adds a [ComponentAfterMountSubscription] to this component that will execute the
+         * subscription after mounting. This is similar to [onUpdate], but rather than a full update on the message,
+         * it refers to after the component is rendered (no guarantee that the message was updated yet).
+         */
+        fun onAfterMount(subscription: ComponentAfterMountSubscription) {
+            afterMountListeners.add(subscription)
+        }
+
+        /**
+         * [prop] gets the [prop] with the [name]. If there are no props with the name, it will return [null] instead.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop's value.
+         */
+        fun anyProp(name: String): Any? = props[name.lowercase()]
+
+        /**
+         * [prop] gets the [prop] with the [name] as [T] type. If there are no props with the name, and with the
+         * right type, it will return [null] instead.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop as a [T] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         */
+        inline fun <reified T> prop(name: String): T? {
+            val value = anyProp(name) ?: return null
+            return (value as? T) ?: throw PropTypeMismatch(name, T::class.java, value::class.java)
+        }
+
+        /**
+         * [ensureProp] ensures that the [prop] with the [name] exists and returns it. This is
+         * recommended for components as it tells the developer what props you are expecting and
+         * what it's type should be.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop as a [T] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
+         */
+        inline fun <reified T> ensureProp(name: String): T {
+            return prop(name) ?: throw UnknownPropException(name)
+        }
+
+        /**
+         * [writableProp] gets a [prop] of a [Writable] type, this is intended to be able to use
+         * delegation much simpler without having to type out the entire [Writable] type.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop as a [Writable] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
+         */
+        inline fun <reified T> writableProp(name: String): Writable<T> {
+            return ensureProp(name)
+        }
+
+        /**
+         * [readonlyProp] gets a [prop] of a [ReadOnly] type, this is intended to be able to use
+         * delegation much simpler without having to type out the entire [ReadOnly] type.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop as a [ReadOnly] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
+         */
+        inline fun <reified T> readonlyProp(name: String): ReadOnly<T> {
+            return ensureProp(name)
+        }
+
+        private fun rerender() {
+            synchronized(this) {
+                val view = View(parent)
+                val render = render ?: throw NoRenderFoundException
+
+                for (beforeMountListener in beforeMountListeners) {
+                    beforeMountListener()
+                }
+                render(view)
+                for (afterMountListener in afterMountListeners) {
+                    coroutine {
+                        afterMountListener()
+                    }
+                }
+            }
+        }
+
+        operator fun invoke(vararg props: Pair<String, Any>) {
+            synchronized(this) {
+                val oldProps = this.props
+                for (unsubscribe in unsubscribes) {
+                    unsubscribe()
+                }
+                this.props = props.associate {
+                    val secondParameter = it.second
+                    if (secondParameter is Writable<*>) {
+                        unsubscribes += secondParameter.subscribe(::rerender)
+                    }
+                    return@associate it.first.lowercase() to secondParameter
+                }
+                val shouldRerender = shouldRerender(oldProps, this.props)
+                if (!shouldRerender) {
+                    return
+                }
+                rerender()
+            }
+        }
+    }
+
     /**
      * An internal class of [Reakt]. You do not need to touch this at all, and it is not recommended to even create
      * this by yourself as it will do nothing.
      */
-    class Component internal constructor() {
+    class View internal constructor(parent: View? = null) {
         internal var embeds: MutableList<EmbedBuilder> = mutableListOf()
         internal var contents: String? = null
         internal var components: MutableList<LowLevelComponent> = mutableListOf()
         internal var listeners: MutableList<GloballyAttachableListener> = mutableListOf()
         internal var uuids: MutableList<String> = mutableListOf()
+
+        internal val reference: View = parent ?: this
 
         private fun attachListeners(api: DiscordApi): Unsubscribe {
             val listenerManagers = listeners.map { api.addListener(it) }
@@ -700,6 +872,12 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
 
             return actionRows
+        }
+
+        fun component(constructor: Component.() -> Unit): Component {
+            val component = Component(reference)
+            constructor(component)
+            return component
         }
 
         fun render(api: DiscordApi): Pair<Unsubscribe, ReaktMessage> {
