@@ -57,6 +57,9 @@ class BodyConstructor internal constructor(var autoAppendNewLines: Boolean) {
         builder.append(if (autoAppendNewLines) "\n$line" else line)
     }
 
+    infix fun BodyConstructor.append(text: String) {
+        append(text)
+    }
     val String.append get() = append(this)
 
     /**
