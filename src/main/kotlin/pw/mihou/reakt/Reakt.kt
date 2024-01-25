@@ -50,6 +50,7 @@ typealias ReactView = Reakt.View.() -> Unit
 typealias Derive<T, K> = (T) -> K
 
 typealias Props = Map<String, Any>
+typealias ComponentConstructor = Reakt.Component.() -> Unit
 
 /**
  * [Reakt] is the React-Svelte inspired method of rendering (or sending) messages as response to various scenarios such
@@ -665,7 +666,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    class Component internal constructor(private val parent: View) {
+    class Component internal constructor(private val constructor: ComponentConstructor,
+                                         private val parent: View) {
         /**
          * [shouldRerender] declares whether the component should re-render when [invoke] is invoked
          * one more time. By default, it checks whether the component's props have changed or not, and
@@ -687,6 +689,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         private var props: Map<String, Any> = mapOf()
 
         private var unsubscribes = mutableListOf<Unsubscribe>()
+
+        private var constructed = false
 
         /**
          * [render] defines how the component should be rendered.
@@ -805,6 +809,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     }
                     return@associate it.first.lowercase() to secondParameter
                 }
+                if (!constructed) {
+                    constructor(this)
+                }
                 val shouldRerender = shouldRerender(oldProps, this.props)
                 if (!shouldRerender) {
                     return
@@ -875,9 +882,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
 
         fun component(constructor: Component.() -> Unit): Component {
-            val component = Component(reference)
-            constructor(component)
-            return component
+            return Component(constructor, reference)
         }
 
         fun render(api: DiscordApi): Pair<Unsubscribe, ReaktMessage> {
