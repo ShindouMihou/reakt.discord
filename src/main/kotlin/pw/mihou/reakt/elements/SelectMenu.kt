@@ -11,15 +11,27 @@ import org.javacord.api.listener.interaction.SelectMenuChooseListener
 import pw.mihou.reakt.Reakt
 import pw.mihou.reakt.uuid.UuidGenerator
 
+typealias ReaktSelectMenuSelectListener = ((event: SelectMenuChooseEvent) -> Unit)
+typealias ReaktSelectMenuConstructor = SelectMenu.() -> Unit
+@Suppress("NAME_SHADOWING")
 fun Reakt.Document.SelectMenu(
     componentType: ComponentType,
     customId: String = UuidGenerator.request(),
     minimumValues: Int = 1,
     maximumValues: Int = 1,
     disabled: Boolean = false,
-    onSelect: ((event: SelectMenuChooseEvent) -> Unit)? = null,
-    selectMenu: SelectMenu.() -> Unit
+    onSelect: ReaktSelectMenuSelectListener? = null,
+    selectMenu: ReaktSelectMenuConstructor
 ) =  component {
+
+    val componentType = ensureProp<ComponentType>("componentType")
+    val customId = ensureProp<String>("customId")
+    val minimumValues = ensureProp<Int>("minimumValues")
+    val maximumValues = ensureProp<Int>("maximumValues")
+    val disabled = ensureProp<Boolean>("disabled")
+    val onSelect = prop<ReaktSelectMenuSelectListener>("onSelect")
+    val selectMenu = ensureProp<ReaktSelectMenuConstructor>("constructor")
+
     render {
         // @native directly injects a select menu into the stack.
         document.stack {
@@ -45,7 +57,10 @@ fun Reakt.Document.SelectMenu(
             component = element.selectMenu.build()
         }
     }
-}() // @note auto-invoke component upon creation.
+}(
+    "componentType" to componentType, "customId" to customId, "minimumValues" to minimumValues,
+    "maximumValues"  to maximumValues, "disabled" to disabled, "onSelect" to onSelect,
+    "constructor" to selectMenu) // @note auto-invoke component upon creation.
 
 fun Reakt.Document.ChannelSelectMenu(
     types: Set<ChannelType>,

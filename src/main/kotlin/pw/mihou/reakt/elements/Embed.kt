@@ -12,17 +12,19 @@ import java.io.File
 import java.io.InputStream
 import java.time.Instant
 
-fun Reakt.Document.Embed(embed: Embed.() -> Unit) = component {
+typealias ReaktEmbedConstructor = Embed.() -> Unit
+fun Reakt.Document.Embed(embed: ReaktEmbedConstructor) = component {
+    val constructor = ensureProp<ReaktEmbedConstructor>("constructor")
     render {
         // @native directly injects an embed element into the stack.
         document.stack {
             val element = Embed()
-            embed(element)
+            constructor(element)
 
             this.embed = element.embed
         }
     }
-}() // @note auto-invoke component upon creation.
+}("constructor"  to embed) // @note auto-invoke component upon creation.
 
 class Embed {
     internal val embed = EmbedBuilder()

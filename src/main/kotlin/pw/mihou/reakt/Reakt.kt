@@ -262,6 +262,18 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
+    private fun flatten(document: Document, into: Document) {
+        for (component in document.components) {
+            if (!component.hasRenderedOnce) {
+                component.rerender()
+            }
+
+            into.components += component
+            into.stack += component.document.stack
+            flatten(component.document, into)
+        }
+    }
+
     private fun apply(renderer: ReactDocument): View {
         this.render = renderer
 
@@ -316,7 +328,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
 
             if (document == null) {
-                component.rerender()
+                if (!component.hasRenderedOnce) {
+                    component.rerender()
+                }
 
                 document = component.document
                 renderedComponents += component
@@ -326,8 +340,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 component.document = document
             }
 
-            // combine the stack elements
-            newDocument.stack += document.stack
+            flatten(document, newDocument)
         }
 
         this.document = newDocument
@@ -742,12 +755,15 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal var render: (Document.() -> Unit)? = null
             private set
 
-        internal var props: Map<String, Any> = mapOf()
+        internal var props: Map<String, Any?> = mapOf()
             private set
 
         private var unsubscribes = mutableListOf<Unsubscribe>()
 
         internal var document = Document()
+
+        internal var hasRenderedOnce = false
+            private set
         private var constructed = false
 
         /**
@@ -846,6 +862,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     beforeMountListener()
                 }
                 render(document)
+                hasRenderedOnce = true
                 for (afterMountListener in afterMountListeners) {
                     coroutine {
                         afterMountListener()
@@ -854,7 +871,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
         }
 
-        operator fun invoke(vararg props: Pair<String, Any>) {
+        operator fun invoke(vararg props: Pair<String, Any?>) {
             synchronized(this) {
                 for (unsubscribe in unsubscribes) {
                     unsubscribe()

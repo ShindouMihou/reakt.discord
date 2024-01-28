@@ -4,7 +4,11 @@ import org.javacord.api.entity.message.component.ButtonBuilder
 import org.javacord.api.entity.message.component.ButtonStyle
 import pw.mihou.reakt.Reakt
 
+@Suppress("NAME_SHADOWING")
 fun Reakt.Document.UrlButton(label: String, url: String, emoji: String? = null) = component {
+    val label = ensureProp<String>("label")
+    val url = ensureProp<String>("url")
+    val emoji = prop<String>("emoji")
     render {
         // @native directly injects a button into the stack.
         stack {
@@ -20,4 +24,4 @@ fun Reakt.Document.UrlButton(label: String, url: String, emoji: String? = null) 
             component = button.build()
         }
     }
-}() // @note auto-invoke component upon creation.
+}("label" to label, "url" to url, "emoji" to emoji) // @note auto-invoke component upon creation.

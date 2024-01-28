@@ -39,14 +39,25 @@ fun Reakt.Document.DangerButton(
     onClick: ((event: ButtonClickEvent) -> Unit)? = null
 ) = Button(ButtonStyle.DANGER, label, customId, emoji, disabled, onClick)
 
+typealias ReaktButtonClickListener = ((event: ButtonClickEvent) -> Unit)
+
+@Suppress("NAME_SHADOWING")
 fun Reakt.Document.Button(
     style: ButtonStyle = ButtonStyle.PRIMARY,
     label: String,
     customId: String? = null,
     emoji: String? = null,
     disabled: Boolean = false,
-    onClick: ((event: ButtonClickEvent) -> Unit)? = null
+    onClick: ReaktButtonClickListener? = null
 ) = component {
+
+    val style =  ensureProp<ButtonStyle>("style")
+    val label = ensureProp<String>("label")
+    val customId = prop<String>("customId")
+    val emoji = prop<String>("emoji")
+    val disabled = ensureProp<Boolean>("disabled")
+    val onClick = prop<ReaktButtonClickListener>("onClick")
+
     render {
         // @native directly injects a button element into the stack.
         document.stack {
@@ -79,4 +90,5 @@ fun Reakt.Document.Button(
             component = button.build()
         }
     }
-}() // @note auto-invoke component upon creation.
+}("style" to style, "label" to label, "customId" to customId,
+    "emoji"  to emoji, "disabled" to disabled, "onclick" to onClick) // @note auto-invoke component upon creation.
