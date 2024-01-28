@@ -344,6 +344,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 component.document = document
             }
 
+            composition.components += component
+            composition.stack += document.stack
+
             flatten(document, composition)
         }
 
