@@ -9,7 +9,6 @@ import org.javacord.api.entity.message.MessageBuilder
 import org.javacord.api.entity.message.MessageUpdater
 import org.javacord.api.entity.message.component.ActionRow
 import org.javacord.api.entity.message.component.LowLevelComponent
-import org.javacord.api.entity.message.embed.Embed
 import org.javacord.api.entity.message.embed.EmbedBuilder
 import org.javacord.api.interaction.callback.InteractionOriginalResponseUpdater
 import org.javacord.api.listener.GloballyAttachableListener
@@ -47,6 +46,7 @@ typealias UpdateSubscription = (message: Message) -> Unit
 typealias ComponentBeforeMountSubscription = () -> Unit
 typealias ComponentAfterMountSubscription = () -> Unit
 typealias ReactView = Reakt.View.() -> Unit
+typealias ReactDocument = Reakt.Document.() -> Unit
 
 typealias Derive<T, K> = (T) -> K
 
@@ -68,7 +68,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     internal var interactionUpdater: InteractionOriginalResponseUpdater? = null
 
     private var unsubscribe: Unsubscribe = {}
-    private var view: (View.() -> Unit)? = null
+
+    private var render: ReactDocument? = null
+    private var document: Document? = Document()
 
     private var debounceTask: Job? = null
     private var mutex = ReentrantLock()
@@ -200,7 +202,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             destroySubscribers.forEach(DestroySubscription::invoke)
 
             unsubscribe()
-            view = null
+            document = null
+            render = null
+
             this.unsubscribe = {}
             this.destroySubscribers = mutableListOf()
             this.resultingMessage = null
@@ -222,12 +226,11 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     /**
      * Renders the given view, this will also be used to re-render the view onwards. Note that using two
      * renders will result in the last executed render being used.
-     * @param view the view to render.
+     * @param renderer the renderer to use.
      */
-    fun render(view: ReactView) {
+    fun render(renderer: ReactDocument) {
         try {
-            val element = apply(view)
-
+            val element = apply(renderer)
             when (renderMode) {
                 RenderMode.Interaction -> {
                     val (unsubscribe, message) = element.render(api)
@@ -259,9 +262,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    private fun apply(view: View.() -> Unit): View {
-        this.view = view
-        val element = View()
+    private fun apply(renderer: ReactDocument): View {
+        this.render = renderer
 
         if (!rendered) {
             firstRenderSubscribers.forEach {
@@ -281,7 +283,59 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
         }
 
-        view(element)
+        val oldDocument = this.document ?: Document()
+        val oldComponents = oldDocument.copyComponents()
+
+        val newDocument = Document()
+        val newComponents = newDocument.copyComponents()
+
+        renderer(newDocument)
+
+        // @note list of components that were re-rendered, so we can reference it when there are duplicates.
+        val renderedComponents = mutableListOf<Component>()
+
+        // @question how do we differentiate two components that are same type, but actually different.
+        // @question how do we know that the two components are the same?
+        // @question we could iterate by index, but that means if the component's index changes, there are no equivalents.
+        for (component in newComponents) {
+            var document: Document? = null
+            for (component1 in renderedComponents) {
+                val equivalent = component.compare(component1)
+                if (equivalent) {
+                    document = component1.document
+                    break
+                }
+            }
+
+            for (component1 in oldComponents) {
+                val equivalent = component.compare(component1)
+                if (equivalent) {
+                    document = component1.document
+                    break
+                }
+            }
+
+            if (document == null) {
+                component.rerender()
+
+                document = component.document
+                renderedComponents += component
+            } else {
+                // ensure that we swap the document inside the component
+                // so that the next rerender will utilize this new document.
+                component.document = document
+            }
+
+            // combine the stack elements
+            newDocument.stack += document.stack
+        }
+
+        this.document = newDocument
+
+        val element = View()
+        for (stackElement in newDocument.stack) {
+            stackElement.render(element)
+        }
         return element
     }
 
@@ -315,14 +369,14 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         val stateUnsubscribe = writable.subscribe { _, _ ->
             try {
                 if (!mutex.tryLock()) return@subscribe
-                val render = this.view ?: return@subscribe
+                val render = this.render ?: return@subscribe
                 debounceTask?.cancel()
                 debounceTask = coroutine {
                     delay(debounceMillis)
                     this.unsubscribe()
 
                     debounceTask = null
-                    if (this.view == null) return@coroutine
+                    if (this.document == null) return@coroutine
                     val interactionUpdater = interactionUpdater
                     if (interactionUpdater != null) {
                         val view = apply(render)
@@ -686,7 +740,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
 
         internal var render: (Document.() -> Unit)? = null
+            private set
+
         internal var props: Map<String, Any> = mapOf()
+            private set
 
         private var unsubscribes = mutableListOf<Unsubscribe>()
 
@@ -780,7 +837,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             return ensureProp(name)
         }
 
-        private fun rerender() {
+        internal fun rerender() {
             synchronized(this) {
                 document = Document()
                 val render = render ?: throw NoRenderFoundException
@@ -799,7 +856,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         operator fun invoke(vararg props: Pair<String, Any>) {
             synchronized(this) {
-                val oldProps = this.props
                 for (unsubscribe in unsubscribes) {
                     unsubscribe()
                 }
@@ -813,12 +869,30 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 if (!constructed) {
                     constructor(this)
                 }
-                val shouldRerender = shouldRerender(oldProps, this.props)
-                if (!shouldRerender) {
-                    return
-                }
-                rerender()
             }
+        }
+
+        internal fun compare(component: Component): Boolean {
+            if (this::class.java != component::class.java) return false
+            if (props.containsKey("%key") && component.props.containsKey("%key")) {
+                val key = component.props["%key"]
+                val key2 = component.props["%key"]
+                if (key != key2) {
+                    return false
+                }
+            } else {
+                for ((key, value) in component.props) {
+                    if (!component.props.containsKey(key)) {
+                        return false
+                    }
+                    val newValue = component.props[key]
+                    if (newValue != value) {
+                        return false
+                    }
+                }
+            }
+
+            return true
         }
     }
 
@@ -829,8 +903,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal var uuid: String? = null
         internal var textContent: String? = null
 
-        fun append(document: Document) {
-            document.stack += this
+        fun append(stack: MutableStack) {
+            stack += this
         }
 
         fun render(view: View) {
@@ -863,7 +937,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     class Document internal constructor() {
-        internal var stack = mutableListOf<StackElement>()
+        internal var components = mutableListOf<Component>()
+        internal var stack: MutableStack = mutableListOf()
+            private set
 
         internal fun stack(constructor: StackElement.() -> Unit) {
             val element = StackElement()
@@ -871,8 +947,14 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             this.stack += element
         }
 
+        internal fun copyComponents(): List<Component> {
+            return components.toList()
+        }
+
         fun component(constructor: Component.() -> Unit): Component {
-            return Component(constructor)
+            val component = Component(constructor)
+            components += component
+            return component
         }
     }
 
@@ -882,8 +964,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal var components: MutableList<LowLevelComponent> = mutableListOf()
         internal var listeners: MutableList<GloballyAttachableListener> = mutableListOf()
         internal var uuids: MutableList<String> = mutableListOf()
-
-        internal var reaktComponents = mutableListOf<Component>()
 
         private fun attachListeners(api: DiscordApi): Unsubscribe {
             val listenerManagers = listeners.map { api.addListener(it) }
@@ -930,10 +1010,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
 
             return actionRows
-        }
-
-        fun component(constructor: Component.() -> Unit): Component {
-            return Component(constructor)
         }
 
         fun render(api: DiscordApi): Pair<Unsubscribe, ReaktMessage> {
@@ -994,3 +1070,5 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 }
+
+typealias MutableStack = MutableList<Reakt.StackElement>
