@@ -904,7 +904,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 // to determine if the prop changed.
                 val copy = this.props.toMutableMap()
                 for ((key, value) in this.props) {
-                    if (value == null) return
+                    if (value == null) break
                     when(value) {
                         is Writable<*>, is ReadOnly<*> ->  {
                             copy["$key$RESERVED_VALUE_KEY"] = when(value) {
