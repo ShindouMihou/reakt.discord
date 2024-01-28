@@ -268,8 +268,12 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 component.rerender()
             }
 
+            into.components += component
             into.stack += component.document.stack
-            flatten(component.document, into)
+
+            if (component.document.components.isNotEmpty()) {
+                flatten(component.document, into)
+            }
         }
     }
 
