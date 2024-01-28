@@ -268,7 +268,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 component.rerender()
             }
 
-            into.components += component
             into.stack += component.document.stack
             flatten(component.document, into)
         }
@@ -301,6 +300,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         val newDocument = Document()
         renderer(newDocument)
 
+        val composition = Document()
         val newComponents = newDocument.copyComponents()
 
         // @note list of components that were re-rendered, so we can reference it when there are duplicates.
@@ -340,13 +340,13 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 component.document = document
             }
 
-            flatten(document, newDocument)
+            flatten(document, composition)
         }
 
-        this.document = newDocument
+        this.document = composition
 
         val element = View()
-        for (stackElement in newDocument.stack) {
+        for (stackElement in composition.stack) {
             stackElement.render(element)
         }
         return element
