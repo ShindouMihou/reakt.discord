@@ -287,9 +287,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         val oldComponents = oldDocument.copyComponents()
 
         val newDocument = Document()
-        val newComponents = newDocument.copyComponents()
-
         renderer(newDocument)
+
+        val newComponents = newDocument.copyComponents()
 
         // @note list of components that were re-rendered, so we can reference it when there are duplicates.
         val renderedComponents = mutableListOf<Component>()
