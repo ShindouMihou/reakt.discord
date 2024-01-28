@@ -49,7 +49,7 @@ fun Reakt.Document.Button(
     emoji: String? = null,
     disabled: Boolean = false,
     onClick: ReaktButtonClickListener? = null
-) = component {
+) = component("pw.mihou.reakt.elements.Button") {
 
     val style =  ensureProp<ButtonStyle>("style")
     val label = ensureProp<String>("label")

@@ -5,7 +5,7 @@ import org.javacord.api.entity.message.component.ButtonStyle
 import pw.mihou.reakt.Reakt
 
 @Suppress("NAME_SHADOWING")
-fun Reakt.Document.UrlButton(label: String, url: String, emoji: String? = null) = component {
+fun Reakt.Document.UrlButton(label: String, url: String, emoji: String? = null) = component("pw.mihou.reakt.elements.UrlButton") {
     val label = ensureProp<String>("label")
     val url = ensureProp<String>("url")
     val emoji = prop<String>("emoji")

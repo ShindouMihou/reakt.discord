@@ -27,6 +27,7 @@ import pw.mihou.reakt.logger.adapters.DefaultLoggingAdapter
 import pw.mihou.reakt.logger.adapters.FastLoggingAdapter
 import pw.mihou.reakt.utils.coroutine
 import pw.mihou.reakt.uuid.UuidGenerator
+import java.lang.IllegalArgumentException
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
@@ -742,7 +743,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    class Component internal constructor(private val constructor: ComponentConstructor) {
+    class Component internal constructor(val qualifiedName: String, private val constructor: ComponentConstructor) {
         /**
          * [shouldRerender] declares whether the component should re-render when [invoke] is invoked
          * one more time. By default, it checks whether the component's props have changed or not, and
@@ -864,7 +865,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal fun rerender() {
             synchronized(this) {
                 document = Document()
-                val render = render ?: throw NoRenderFoundException
+                val render = render ?: throw NoRenderFoundException(qualifiedName)
 
                 for (beforeMountListener in beforeMountListeners) {
                     beforeMountListener()
@@ -879,18 +880,42 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
         }
 
+        companion object {
+            internal const val RESERVED_VALUE_KEY = "&[value\$]"
+        }
+
         operator fun invoke(vararg props: Pair<String, Any?>) {
             synchronized(this) {
                 for (unsubscribe in unsubscribes) {
                     unsubscribe()
                 }
                 this.props = props.associate {
+                    if (it.first.endsWith(RESERVED_VALUE_KEY))
+                        throw IllegalArgumentException("$qualifiedName component has an illegal prop passed '${it.first}'.")
+
                     val secondParameter = it.second
                     if (secondParameter is Writable<*>) {
                         unsubscribes += secondParameter.subscribe(::rerender)
                     }
                     return@associate it.first.lowercase() to secondParameter
                 }
+
+                // for comparisons, we need to have the initial prop value for the writable/readonly
+                // to determine if the prop changed.
+                val copy = this.props.toMutableMap()
+                for ((key, value) in this.props) {
+                    if (value == null) return
+                    when(value) {
+                        is Writable<*>, is ReadOnly<*> ->  {
+                            copy["$key$RESERVED_VALUE_KEY"] = when(value) {
+                                is Writable<*> -> value.get()
+                                is ReadOnly<*> -> value.get()
+                                else -> value
+                            }
+                        }
+                    }
+                }
+                this.props = copy
                 if (!constructed) {
                     constructor(this)
                 }
@@ -899,18 +924,34 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         internal fun compare(component: Component): Boolean {
             if (this::class.java != component::class.java) return false
+            if (qualifiedName != component.qualifiedName) return false
             if (props.containsKey("%key") && component.props.containsKey("%key")) {
                 val key = component.props["%key"]
-                val key2 = component.props["%key"]
+                val key2 = this.props["%key"]
                 if (key != key2) {
                     return false
                 }
             } else {
-                for ((key, value) in component.props) {
+                for ((key, value) in props) {
+                    if (key.endsWith(RESERVED_VALUE_KEY)) continue // ignore since it's a corresponding pair.
                     if (!component.props.containsKey(key)) {
                         return false
                     }
                     val newValue = component.props[key]
+                    if (newValue != null && value != null) {
+                        if (newValue::class.java != value::class.java) return false
+                        when(value) {
+                            is Writable<*>, is ReadOnly<*> -> {
+                                if (!component.props.containsKey("$key$RESERVED_VALUE_KEY"))
+                                    throw IllegalStateException("Reakt component '$qualifiedName' has ${value::class.java.name} but without the " +
+                                            "corresponding comparison prop. This shouldn't happen.")
+
+                                val initialValue = component.props["$key$RESERVED_VALUE_KEY"]
+                                val comparisonValue = this.props["$key$RESERVED_VALUE_KEY"]
+                                if (initialValue != comparisonValue) return false
+                            }
+                        }
+                    }
                     if (newValue != value) {
                         return false
                     }
@@ -972,8 +1013,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             return components.toList()
         }
 
-        fun component(constructor: Component.() -> Unit): Component {
-            val component = Component(constructor)
+        fun component(qualifiedName: String, constructor: Component.() -> Unit): Component {
+            val component = Component(qualifiedName, constructor)
             components += component
             return component
         }

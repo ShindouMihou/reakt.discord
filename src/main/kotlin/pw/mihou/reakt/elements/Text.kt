@@ -4,7 +4,7 @@ import pw.mihou.reakt.Reakt
 import pw.mihou.reakt.styles.BodyConstructor
 
 typealias ReaktTextConstructor = Text.() -> Unit
-fun Reakt.Document.Text(text: ReaktTextConstructor) = component {
+fun Reakt.Document.Text(text: ReaktTextConstructor) = component("pw.mihou.reakt.elements.Text") {
     val constructor =  ensureProp<ReaktTextConstructor>("constructor")
     render {
         // @native directly injects a text element into the stack.

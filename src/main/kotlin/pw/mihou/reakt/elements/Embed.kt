@@ -13,7 +13,7 @@ import java.io.InputStream
 import java.time.Instant
 
 typealias ReaktEmbedConstructor = Embed.() -> Unit
-fun Reakt.Document.Embed(embed: ReaktEmbedConstructor) = component {
+fun Reakt.Document.Embed(embed: ReaktEmbedConstructor) = component("pw.mihou.reakt.elements.Embed") {
     val constructor = ensureProp<ReaktEmbedConstructor>("constructor")
     render {
         // @native directly injects an embed element into the stack.

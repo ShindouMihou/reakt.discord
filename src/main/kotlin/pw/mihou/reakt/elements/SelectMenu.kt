@@ -22,7 +22,7 @@ fun Reakt.Document.SelectMenu(
     disabled: Boolean = false,
     onSelect: ReaktSelectMenuSelectListener? = null,
     selectMenu: ReaktSelectMenuConstructor
-) =  component {
+) =  component("pw.mihou.reakt.elements.SelectMenu") {
 
     val componentType = ensureProp<ComponentType>("componentType")
     val customId = ensureProp<String>("customId")
