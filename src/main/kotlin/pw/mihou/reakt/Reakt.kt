@@ -268,9 +268,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 component.rerender()
             }
 
-            into.components += component
             into.stack += component.document.stack
-
             if (component.document.components.isNotEmpty()) {
                 flatten(component.document, into)
             }
@@ -323,11 +321,14 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 }
             }
 
-            for (component1 in oldComponents) {
-                val equivalent = component.compare(component1)
-                if (equivalent) {
-                    document = component1.document
-                    break
+            // @note only iterate older components when Reakt re-rendered.
+            if (rendered) {
+                for (component1 in oldComponents) {
+                    val equivalent = component.compare(component1)
+                    if (equivalent) {
+                        document = component1.document
+                        break
+                    }
                 }
             }
 
@@ -345,8 +346,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
 
             composition.components += component
-            composition.stack += document.stack
-
             flatten(document, composition)
         }
 
@@ -926,10 +925,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal var listener: GloballyAttachableListener? = null
         internal var uuid: String? = null
         internal var textContent: String? = null
-
-        fun append(stack: MutableStack) {
-            stack += this
-        }
 
         fun render(view: View) {
             val embed = embed
