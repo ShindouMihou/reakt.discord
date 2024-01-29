@@ -869,30 +869,31 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         operator fun invoke(vararg props: Pair<String, Any?>) {
             synchronized(this) {
-                this.props = props.associate {
+                val statefulProps = mutableListOf<Pair<String, Any?>>()
+                val mutableProps = props.associate {
                     if (it.first.endsWith(RESERVED_VALUE_KEY))
                         throw IllegalArgumentException("$qualifiedName component has an illegal prop passed '${it.first}'.")
 
-                    val secondParameter = it.second
-                    return@associate it.first.lowercase() to secondParameter
-                }
+                    val value = it.second
+                    if (value != null && value is Writable<*> || value is ReadOnly<*>) {
+                        statefulProps.add(it.first.lowercase() to when(value) {
+                            is Writable<*> -> value.get()
+                            is ReadOnly<*> -> value.get()
+                            else -> value
+                        })
+                    }
+                    return@associate it.first.lowercase() to value
+                }.toMutableMap()
 
-                // for comparisons, we need to have the initial prop value for the writable/readonly
-                // to determine if the prop changed.
-                val copy = this.props.toMutableMap()
-                for ((key, value) in this.props) {
-                    if (value == null) break
-                    when(value) {
-                        is Writable<*>, is ReadOnly<*> ->  {
-                            copy["$key$RESERVED_VALUE_KEY"] = when(value) {
-                                is Writable<*> -> value.get()
-                                is ReadOnly<*> -> value.get()
-                                else -> value
-                            }
-                        }
+                if (statefulProps.isNotEmpty())  {
+                    // for comparisons, we need to have the initial prop value for the writable/readonly
+                    // to determine if the prop changed.
+                    for ((key, value) in statefulProps) {
+                        mutableProps["$key$RESERVED_VALUE_KEY"] = value
                     }
                 }
-                this.props = copy
+
+                this.props = mutableProps
                 if (!constructed) {
                     constructor(this)
                 }
