@@ -741,7 +741,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    class Component internal constructor(val qualifiedName: String, private val constructor: ComponentConstructor) {
+    class Component internal constructor(private val qualifiedName: String, private val constructor: ComponentConstructor) {
 
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
