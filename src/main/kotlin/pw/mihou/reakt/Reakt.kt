@@ -46,12 +46,13 @@ typealias UpdateSubscription = (message: Message) -> Unit
 
 typealias ComponentBeforeMountSubscription = () -> Unit
 typealias ComponentAfterMountSubscription = () -> Unit
+
 typealias ReactView = Reakt.View.() -> Unit
 typealias ReactDocument = Reakt.Document.() -> Unit
 
 typealias Derive<T, K> = (T) -> K
 
-typealias Props = Map<String, Any>
+typealias Props = Map<String, Any?>
 typealias ComponentConstructor = Reakt.Component.() -> Unit
 
 /**
@@ -309,9 +310,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         // @note list of components that were re-rendered, so we can reference it when there are duplicates.
         val renderedComponents = mutableListOf<Component>()
 
-        // @question how do we differentiate two components that are same type, but actually different.
-        // @question how do we know that the two components are the same?
-        // @question we could iterate by index, but that means if the component's index changes, there are no equivalents.
         for (component in newComponents) {
             var document: Document? = null
             for (component1 in renderedComponents) {
@@ -744,30 +742,15 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     class Component internal constructor(val qualifiedName: String, private val constructor: ComponentConstructor) {
-        /**
-         * [shouldRerender] declares whether the component should re-render when [invoke] is invoked
-         * one more time. By default, it checks whether the component's props have changed or not, and
-         * bases it on that.
-         */
-        @Volatile var shouldRerender: (old: Props, new: Props) -> Boolean = shouldRerender@{ old, new ->
-            for ((key, value) in old) {
-                val currentValue = new[key]
-                if (currentValue == null || currentValue != value) {
-                    return@shouldRerender true
-                }
-            }
-            return@shouldRerender false
-        }
+
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
 
         internal var render: (Document.() -> Unit)? = null
             private set
 
-        internal var props: Map<String, Any?> = mapOf()
+        internal var props: Props = mapOf()
             private set
-
-        private var unsubscribes = mutableListOf<Unsubscribe>()
 
         internal var document = Document()
 
@@ -886,17 +869,11 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         operator fun invoke(vararg props: Pair<String, Any?>) {
             synchronized(this) {
-                for (unsubscribe in unsubscribes) {
-                    unsubscribe()
-                }
                 this.props = props.associate {
                     if (it.first.endsWith(RESERVED_VALUE_KEY))
                         throw IllegalArgumentException("$qualifiedName component has an illegal prop passed '${it.first}'.")
 
                     val secondParameter = it.second
-                    if (secondParameter is Writable<*>) {
-                        unsubscribes += secondParameter.subscribe(::rerender)
-                    }
                     return@associate it.first.lowercase() to secondParameter
                 }
 
