@@ -299,6 +299,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
             this.rendered = true
         } catch (err: Exception) {
+            // @note propogate upwards.
+            if (err is ReaktStateInsideRenderMethodException || err is ReaktComponentDuplicateException) {
+                throw err
+            }
             logger.error("An uncaught exception was received by Reakt's renderer with the following stacktrace.", err)
         }
     }
