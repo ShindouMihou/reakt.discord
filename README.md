@@ -27,8 +27,8 @@ fun onEvent(event: NexusCommandEvent) {
                 Title("Rendered with Reakt")
                 Embed(spaced = true) {
                     Body {
-                        p("This message was rendered with Reakt.").append
-                        (p("The button has been clicked ") + bold("$clicks times.")).append
+                        this append p("This message was rendered with Reakt.")
+                        this append p("The button has been clicked ") + bold("$clicks times.")
                     }
                 }
                 Color(java.awt.Color.YELLOW)
@@ -42,3 +42,58 @@ fun onEvent(event: NexusCommandEvent) {
     }
 }
 ```
+
+## Build with Components
+
+All elements in Reakt are designed as components where everything from the `Embed` to the `Button` are component declarations. Designing 
+the framework as such helps us build performance and efficiency as we are able to create reusable components that can fetch its own data 
+without the need to refetch it every single time another element changes.
+
+Reakt re-renders only what needs to be re-rendered, a big difference from its origins as Nexus.R.
+```kotlin
+val Reakt.Document.ClickEmbed = component {
+    val clicks by writableProp("clicks")
+    render {
+        Embed {
+            Title("Rendered with Reakt")
+            Embed(spaced = true) {
+                Body {
+                    this append p("This message was rendered with Reakt.")
+                    this append p("The button has been clicked ") + bold("$clicks times.")
+                }
+            }
+            Color(java.awt.Color.YELLOW)
+            Timestamp(Instant.now())
+        }
+    }
+}
+
+val Reakt.Document.ClickButton = component {
+    var clicks by writableProp("clicks")
+    render {
+        Button(label = "Click me!") {
+            it.buttonInteraction.acknowledge()
+            clicks += 1
+        }
+    }
+}
+
+fun onEvent(event: NexusCommandEvent) {
+    event.R {
+        var clicks by writable(0)
+        render {
+            ClickEmbed("clicks" to clicks)
+            ClickButton("clicks" to clicks)
+        }
+    }
+}
+```
+
+## Strictly Enforced Ruling
+
+Reakt has several bad practices that one shouldn't follow, and among them, we have a few that are strictly enforced 
+to prevent bad code:
+1. Components should have a `%key` prop that uniquely identify it when there are more than two of them that do not 
+have any differentiating factors, such as different prop values, different props, etc.
+2. States, such as `writable`, cannot be declared or initialized inside a `render` method.
+
