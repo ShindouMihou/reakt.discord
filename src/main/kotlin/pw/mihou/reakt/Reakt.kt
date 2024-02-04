@@ -419,12 +419,13 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      */
     fun <T> writable(value: T): Writable<T> {
         val isInsideRenderMethod = StackWalker.getInstance().walk { stream ->
-            val firstFrame = stream
-                .skip(1)
+            val frame = stream
+                .limit(20)  // 7-8 frames is all we really need, but for safety purposes, we'll push to 20 frames
+                .dropWhile { !(it.methodName == "render" && it.className.startsWith("pw.mihou.reakt")) }
                 .findFirst()
-                .get()
+                .getOrNull()
 
-            return@walk firstFrame.methodName == "render" && firstFrame.className.startsWith("pw.mihou.reakt")
+            return@walk frame != null
         }
         if (isInsideRenderMethod) {
             throw ReaktStateInsideRenderMethodException
