@@ -17,7 +17,7 @@ import kotlin.time.Duration.Companion.hours
  * @param react the [Reakt] instance.
  */
 private fun CompletableFuture<Message>.ack(react: Reakt): CompletableFuture<Message> {
-    return this.thenApply { message ->
+    return this.exceptionally(Reakt::suggestions).thenApply { message ->
         react.acknowledgeUpdate(message)
         return@thenApply message
     }

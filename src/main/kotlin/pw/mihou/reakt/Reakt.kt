@@ -140,6 +140,27 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         @JvmField @Volatile var autoDeferAfterMilliseconds: Long = 2350
 
         internal const val RESERVED_VALUE_KEY = "&[value\$]"
+
+        /**
+         * Logs an [exception] paired with a suggestion when the [exception] is caused by a misuse of the
+         * Reakt rendering system.
+         *
+         * @param exception the exception to handle
+         */
+        @Suppress("SameReturnValue")
+        internal fun <T> suggestions(exception: Throwable): T? {
+            val message = exception.message ?: return null
+            if (message.contains("COMPONENT_CUSTOM_ID_DUPLICATED")) {
+                logger.warn("RKT-939 This issue can happen when two or more components " +
+                        "(with Discord components, such as buttons) have no differentiating factors (such as a prop), " +
+                        "leading to Reakt reusing the same render output for all of them. " +
+                        "To resolve this issue, you may add the '%key' prop with a unique, identifying value that " +
+                        "identifies the component. (Read more at https://github.com/ShindouMihou/reakt.discord/wiki/Troubleshooting)", exception)
+            } else {
+                logger.error("Failed to re-render message using Reakt with the following stacktrace.", exception)
+            }
+            return null
+        }
     }
 
     internal enum class RenderMode {
@@ -404,27 +425,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     fun <T> writable(value: T): Writable<T> {
         val element = Writable(value)
         return expand(element)
-    }
-
-    /**
-     * Logs an [exception] paired with a suggestion when the [exception] is caused by a misuse of the
-     * Reakt rendering system.
-     *
-     * @param exception the exception to handle
-     */
-    @Suppress("SameReturnValue")
-    private fun <T> suggestions(exception: Throwable): T? {
-        val message = exception.message ?: return null
-        if (message.contains("COMPONENT_CUSTOM_ID_DUPLICATED")) {
-            logger.warn("RKT-939 This issue can happen when two or more components " +
-                    "(with Discord components, such as buttons) have no differentiating factors (such as a prop), " +
-                    "leading to Reakt reusing the same render output for all of them. " +
-                    "To resolve this issue, you may add the '%key' prop with a unique, identifying value that " +
-                    "identifies the component. (Read more at https://github.com/ShindouMihou/reakt.discord/wiki/Troubleshooting)", exception)
-        } else {
-            logger.error("Failed to re-render message using Reakt with the following stacktrace.", exception)
-        }
-        return null
     }
 
     /**
