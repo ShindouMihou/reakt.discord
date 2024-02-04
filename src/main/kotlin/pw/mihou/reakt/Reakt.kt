@@ -21,6 +21,7 @@ import pw.mihou.reakt.channels.Endpoint
 import pw.mihou.reakt.deferrable.ReaktMessage
 import pw.mihou.reakt.exceptions.NoRenderFoundException
 import pw.mihou.reakt.exceptions.PropTypeMismatch
+import pw.mihou.reakt.exceptions.ReaktComponentDuplicateException
 import pw.mihou.reakt.exceptions.UnknownPropException
 import pw.mihou.reakt.logger.LoggingAdapter
 import pw.mihou.reakt.logger.adapters.DefaultLoggingAdapter
@@ -151,11 +152,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal fun <T> suggestions(exception: Throwable): T? {
             val message = exception.message ?: return null
             if (message.contains("COMPONENT_CUSTOM_ID_DUPLICATED")) {
-                logger.error("RKT-939 This issue can happen when two or more components " +
-                        "(with Discord components, such as buttons) have no differentiating factors (such as a prop), " +
-                        "leading to Reakt reusing the same render output for all of them. " +
-                        "To resolve this issue, you may add the '%key' prop with a unique, identifying value that " +
-                        "identifies the component. (Read more at https://github.com/ShindouMihou/reakt.discord/wiki/Troubleshooting)", exception)
+                throw ReaktComponentDuplicateException
             } else {
                 logger.error("Failed to re-render message using Reakt with the following stacktrace.", exception)
             }
