@@ -27,7 +27,6 @@ import pw.mihou.reakt.logger.adapters.DefaultLoggingAdapter
 import pw.mihou.reakt.logger.adapters.FastLoggingAdapter
 import pw.mihou.reakt.utils.coroutine
 import pw.mihou.reakt.uuid.UuidGenerator
-import java.lang.IllegalArgumentException
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
@@ -93,6 +92,20 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     private var messageDeleteListenerManager: ListenerManager<MessageDeleteListener>? = null
     private var destroySubscribers = mutableListOf<DestroySubscription>()
 
+    internal var componentSessions: MutableMap<Int, ComponentStore> = mutableMapOf()
+    inner class ComponentStore {
+        private var store = mutableMapOf<String, Writable<*>>()
+        @Suppress("UNCHECKED_CAST")
+        fun <T> writable(key: String, value: T): Writable<T> {
+            val writable = store.computeIfAbsent(key) { writable(value) }
+            return writable as Writable<T>
+        }
+        @Suppress("UNUSED")
+        fun dealloc(key: String) {
+            store.remove(key)
+        }
+    }
+
     companion object {
         /**
          * Defines how long we should wait before proceeding to re-render the view, this is intended to ensure
@@ -121,6 +134,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * be more than enough even when considering network latencies.
          */
         @JvmField @Volatile var autoDeferAfterMilliseconds: Long = 2350
+
+        internal const val RESERVED_VALUE_KEY = "&[value\$]"
     }
 
     internal enum class RenderMode {
@@ -167,6 +182,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      *
      * @param subscription the subscription to execute.
      */
+    @Suppress("UNUSED")
     fun onDestroy(subscription: DestroySubscription) {
         destroySubscribers.add(subscription)
     }
@@ -222,6 +238,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             this.expansions = mutableListOf()
             this.messageDeleteListenerManager?.remove()
             this.messageDeleteListenerManager = null
+            this.componentSessions = mutableMapOf()
         }
     }
 
@@ -741,8 +758,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    class Component internal constructor(private val qualifiedName: String, private val constructor: ComponentConstructor) {
-
+    inner class Component internal constructor(
+        private val qualifiedName: String,
+        private val constructor: ComponentConstructor
+    ) {
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
 
@@ -757,6 +776,23 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal var hasRenderedOnce = false
             private set
         private var constructed = false
+
+        val session = componentSessions.computeIfAbsent(hashCode) {
+            ComponentStore()
+        }
+        private val hashCode get(): Int {
+            var result = 1
+            fun inc(vararg elements: Any?) {
+                for (element in elements) {
+                    result = 31 * result + (element?.hashCode() ?: 0)
+                }
+            }
+            for ((key, value) in props) {
+                inc(key, value)
+            }
+            inc(qualifiedName)
+            return result
+        }
 
         /**
          * [render] defines how the component should be rendered.
@@ -861,10 +897,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     }
                 }
             }
-        }
-
-        companion object {
-            internal const val RESERVED_VALUE_KEY = "&[value\$]"
         }
 
         operator fun invoke(vararg props: Pair<String, Any?>) {
@@ -976,7 +1008,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    class Document internal constructor() {
+    inner class Document internal constructor() {
         internal var components = mutableListOf<Component>()
         internal var stack: MutableStack = mutableListOf()
             private set
