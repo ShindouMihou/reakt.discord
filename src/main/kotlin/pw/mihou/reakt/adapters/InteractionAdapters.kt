@@ -27,12 +27,12 @@ fun <Interaction: InteractionBase> Interaction.R(ephemeral: Boolean, lifetime: D
         reakt(r)
 
         return@autoDefer r.message!!
-    }.exceptionally(Reakt::suggestions).thenApply {
+    }.thenApply {
         val message = it.getOrRequestMessage().join()
 
         r.interactionUpdater = it.updater
         r.acknowledgeUpdate(message)
 
         return@thenApply it
-    }
+    }.exceptionally(Reakt::suggestions)
 }

@@ -151,7 +151,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal fun <T> suggestions(exception: Throwable): T? {
             val message = exception.message ?: return null
             if (message.contains("COMPONENT_CUSTOM_ID_DUPLICATED")) {
-                logger.warn("RKT-939 This issue can happen when two or more components " +
+                logger.error("RKT-939 This issue can happen when two or more components " +
                         "(with Discord components, such as buttons) have no differentiating factors (such as a prop), " +
                         "leading to Reakt reusing the same render output for all of them. " +
                         "To resolve this issue, you may add the '%key' prop with a unique, identifying value that " +
