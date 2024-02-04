@@ -36,7 +36,6 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 
 typealias Subscription<T> = (oldValue: T, newValue: T) -> Unit
-typealias PlainSubscription = () -> Unit
 typealias Unsubscribe = () -> Unit
 
 typealias RenderSubscription = () -> Unit
@@ -95,9 +94,14 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     internal var componentSessions: MutableMap<Int, ComponentStore> = mutableMapOf()
     inner class ComponentStore {
         private var store = mutableMapOf<String, Writable<*>>()
+        internal var hasChanged = false
+
         @Suppress("UNCHECKED_CAST")
         fun <T> writable(key: String, value: T): Writable<T> {
-            val writable = store.computeIfAbsent(key) { writable(value) }
+            val writable = store.computeIfAbsent(key) {
+                writable(value)
+            }
+            writable.subscribe { _, _ -> hasChanged = true }
             return writable as Writable<T>
         }
         @Suppress("UNUSED")
@@ -328,11 +332,11 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         val renderedComponents = mutableListOf<Component>()
 
         for (component in newComponents) {
-            var document: Document? = null
+            var equivalence: Component? = null
             for (component1 in renderedComponents) {
                 val equivalent = component.compare(component1)
                 if (equivalent) {
-                    document = component1.document
+                    equivalence = component1
                     break
                 }
             }
@@ -342,13 +346,14 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 for (component1 in oldComponents) {
                     val equivalent = component.compare(component1)
                     if (equivalent) {
-                        document = component1.document
+                        equivalence = component1
                         break
                     }
                 }
             }
 
-            if (document == null) {
+            lateinit var document: Document
+            if (equivalence == null) {
                 if (!component.hasRenderedOnce) {
                     component.rerender()
                 }
@@ -356,9 +361,13 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 document = component.document
                 renderedComponents += component
             } else {
+                if (equivalence.session.hasChanged) {
+                    equivalence.session.hasChanged = false
+                    equivalence.rerender()
+                }
                 // ensure that we swap the document inside the component
                 // so that the next rerender will utilize this new document.
-                component.document = document
+                component.document = equivalence.document
             }
 
             composition.components += component
@@ -693,17 +702,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
 
         /**
-         * Subscribes to changes to the value of the [Writable]. This is ran asynchronously after the value has
-         * been changed.
-         *
-         * @param subscription the task to execute upon a change to the value is detected.
-         * @return an [Unsubscribe] method to unsubscribe the [Subscription].
-         */
-        infix fun subscribe(subscription: PlainSubscription): Unsubscribe {
-            return subscribe { _, _ -> subscription() }
-        }
-
-        /**
          * Reacts to the change and executes all the subscriptions that were subscribed at the
          * time of execution.
          *
@@ -935,6 +933,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal fun compare(component: Component): Boolean {
             if (this::class.java != component::class.java) return false
             if (qualifiedName != component.qualifiedName) return false
+            if (hashCode != component.hashCode) return false
             if (props.containsKey("%key") && component.props.containsKey("%key")) {
                 val key = component.props["%key"]
                 val key2 = this.props["%key"]
