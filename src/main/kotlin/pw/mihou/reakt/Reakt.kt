@@ -407,6 +407,27 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
+     * Logs an [exception] paired with a suggestion when the [exception] is caused by a misuse of the
+     * Reakt rendering system.
+     *
+     * @param exception the exception to handle
+     */
+    @Suppress("SameReturnValue")
+    private fun <T> suggestions(exception: Throwable): T? {
+        val message = exception.message ?: return null
+        if (message.contains("COMPONENT_CUSTOM_ID_DUPLICATED")) {
+            logger.warn("RKT-939 This issue can happen when two or more components " +
+                    "(with Discord components, such as buttons) have no differentiating factors (such as a prop), " +
+                    "leading to Reakt reusing the same render output for all of them. " +
+                    "To resolve this issue, you may add the '%key' prop with a unique, identifying value that " +
+                    "identifies the component. (Read more at https://github.com/ShindouMihou/reakt.discord/wiki/Troubleshooting)", exception)
+        } else {
+            logger.error("Failed to re-render message using Reakt with the following stacktrace.", exception)
+        }
+        return null
+    }
+
+    /**
      * Adds a [Subscription] that enables the [ReactView] to be re-rendered whenever the value of the [Writable]
      * changes, this is what [writable] uses internally to react to changes.
      * @param writable the writable to subscribe.
@@ -428,20 +449,14 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     if (interactionUpdater != null) {
                         val view = apply(render)
                         this.unsubscribe = view.render(interactionUpdater, api)
-                        interactionUpdater.update().exceptionally {
-                            logger.error("Failed to re-render message using Reakt with the following stacktrace.", it)
-                            return@exceptionally null
-                        }.thenAccept(::acknowledgeUpdate)
+                        interactionUpdater.update().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
                     } else {
                         val message = resultingMessage
                         if (message != null) {
                             val updater = message.createUpdater()
                             val view = apply(render)
                             this.unsubscribe = view.render(updater, api)
-                            updater.replaceMessage().exceptionally {
-                                logger.error("Failed to re-render message using Reakt with the following stacktrace.", it)
-                                return@exceptionally null
-                            }.thenAccept(::acknowledgeUpdate)
+                            updater.replaceMessage().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
                         }
                     }
 
