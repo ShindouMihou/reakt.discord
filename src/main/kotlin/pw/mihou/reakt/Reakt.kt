@@ -368,6 +368,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 // ensure that we swap the document inside the component
                 // so that the next rerender will utilize this new document.
                 component.document = equivalence.document
+                document = component.document
             }
 
             composition.components += component
