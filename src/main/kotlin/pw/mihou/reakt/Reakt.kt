@@ -97,8 +97,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         @Suppress("UNCHECKED_CAST")
         fun <T> writable(key: String, value: T): Writable<T> {
+            detectInvalidWritableDeclaration()
             val writable = store.computeIfAbsent(key) {
-                writable(value)
+                val element = Writable(value)
+                return@computeIfAbsent expand(element)
             }
             writable.subscribe { _, _ -> hasChanged = true }
             return writable as Writable<T>
@@ -402,6 +404,21 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         return element
     }
 
+    internal inline fun detectInvalidWritableDeclaration() {
+        val isInsideRenderMethod = StackWalker.getInstance().walk { stream ->
+            val frame = stream
+                .limit(6) // 6 frames is usually where we can determine where the render method is called
+                .dropWhile { !(it.methodName == "render" && it.className.startsWith("pw.mihou.reakt")) }
+                .findFirst()
+                .getOrNull()
+
+            return@walk frame != null
+        }
+        if (isInsideRenderMethod) {
+            throw ReaktStateInsideRenderMethodException
+        }
+    }
+
     /**
      * Creates a [Writable] that can react to changes of the value, allowing you to re-render the message
      * with the new states. Internally, this simply creates a [Writable] then adds a subscriber to re-render
@@ -418,18 +435,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      * @return a [Writable] with a [Subscription] that will re-render the [ReactView] when the state changes.
      */
     fun <T> writable(value: T): Writable<T> {
-        val isInsideRenderMethod = StackWalker.getInstance().walk { stream ->
-            val frame = stream
-                .limit(6) // 6 frames is usually where we can determine where the render method is called
-                .dropWhile { !(it.methodName == "render" && it.className.startsWith("pw.mihou.reakt")) }
-                .findFirst()
-                .getOrNull()
-
-            return@walk frame != null
-        }
-        if (isInsideRenderMethod) {
-            throw ReaktStateInsideRenderMethodException
-        }
+        detectInvalidWritableDeclaration()
         val element = Writable(value)
         return expand(element)
     }
