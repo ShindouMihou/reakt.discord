@@ -745,10 +745,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             return _value.get().toString()
         }
 
-        override fun hashCode(): Int {
-            return _value.get().hashCode()
-        }
-
         override fun equals(other: Any?): Boolean {
             val value = _value.get()
             if (other == null && value == null) return true
@@ -789,6 +785,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 }
             }
             for ((key, value) in props) {
+                // when dealing with writable's origin value, ignore it.
+                if (key.endsWith(RESERVED_VALUE_KEY)) continue
                 inc(key, value)
             }
             inc(qualifiedName)
