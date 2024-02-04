@@ -19,10 +19,7 @@ import org.slf4j.LoggerFactory
 import org.slf4j.helpers.NOPLogger
 import pw.mihou.reakt.channels.Endpoint
 import pw.mihou.reakt.deferrable.ReaktMessage
-import pw.mihou.reakt.exceptions.NoRenderFoundException
-import pw.mihou.reakt.exceptions.PropTypeMismatch
-import pw.mihou.reakt.exceptions.ReaktComponentDuplicateException
-import pw.mihou.reakt.exceptions.UnknownPropException
+import pw.mihou.reakt.exceptions.*
 import pw.mihou.reakt.logger.LoggingAdapter
 import pw.mihou.reakt.logger.adapters.DefaultLoggingAdapter
 import pw.mihou.reakt.logger.adapters.FastLoggingAdapter
@@ -32,6 +29,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.jvm.optionals.getOrNull
 import kotlin.reflect.KProperty
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
@@ -420,6 +418,17 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      * @return a [Writable] with a [Subscription] that will re-render the [ReactView] when the state changes.
      */
     fun <T> writable(value: T): Writable<T> {
+        val isInsideRenderMethod = StackWalker.getInstance().walk { stream ->
+            val firstFrame = stream
+                .skip(1)
+                .findFirst()
+                .get()
+
+            return@walk firstFrame.methodName == "render" && firstFrame.className.startsWith("pw.mihou.reakt")
+        }
+        if (isInsideRenderMethod) {
+            throw ReaktStateInsideRenderMethodException
+        }
         val element = Writable(value)
         return expand(element)
     }
