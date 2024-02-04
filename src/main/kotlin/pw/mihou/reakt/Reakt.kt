@@ -776,8 +776,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             private set
         private var constructed = false
 
-        val session = componentSessions.computeIfAbsent(hashCode) {
-            ComponentStore()
+        val session by lazy {
+            componentSessions.computeIfAbsent(hashCode) {
+                ComponentStore()
+            }
         }
         private val hashCode get(): Int {
             var result = 1
