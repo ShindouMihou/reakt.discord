@@ -152,7 +152,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal fun <T> suggestions(exception: Throwable): T? {
             val message = exception.message ?: return null
             if (message.contains("COMPONENT_CUSTOM_ID_DUPLICATED")) {
-                throw ReaktComponentDuplicateException
+                throw ReaktComponentDuplicateException(message)
             } else {
                 logger.error("Failed to re-render message using Reakt with the following stacktrace.", exception)
             }
