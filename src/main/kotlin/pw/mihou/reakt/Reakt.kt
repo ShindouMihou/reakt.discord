@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory
 import org.slf4j.helpers.NOPLogger
 import pw.mihou.reakt.channels.Endpoint
 import pw.mihou.reakt.deferrable.ReaktMessage
+import pw.mihou.reakt.exceptions.*
 import pw.mihou.reakt.logger.LoggingAdapter
 import pw.mihou.reakt.logger.adapters.DefaultLoggingAdapter
 import pw.mihou.reakt.logger.adapters.FastLoggingAdapter
@@ -28,6 +29,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.jvm.optionals.getOrNull
 import kotlin.reflect.KProperty
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
@@ -38,8 +40,17 @@ typealias Unsubscribe = () -> Unit
 typealias RenderSubscription = () -> Unit
 typealias DestroySubscription = () -> Unit
 typealias UpdateSubscription = (message: Message) -> Unit
-typealias ReactComponent = Reakt.Component.() -> Unit
+
+typealias ComponentBeforeMountSubscription = () -> Unit
+typealias ComponentAfterMountSubscription = () -> Unit
+
+typealias ReactView = Reakt.View.() -> Unit
+typealias ReactDocument = Reakt.Document.() -> Unit
+
 typealias Derive<T, K> = (T) -> K
+
+typealias Props = Map<String, Any?>
+typealias ComponentConstructor = Reakt.Component.() -> Unit
 
 /**
  * [Reakt] is the React-Svelte inspired method of rendering (or sending) messages as response to various scenarios such
@@ -56,7 +67,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     internal var interactionUpdater: InteractionOriginalResponseUpdater? = null
 
     private var unsubscribe: Unsubscribe = {}
-    private var component: (Component.() -> Unit)? = null
+
+    private var render: ReactDocument? = null
+    private var document: Document? = Document()
 
     private var debounceTask: Job? = null
     private var mutex = ReentrantLock()
@@ -77,9 +90,30 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     private var messageDeleteListenerManager: ListenerManager<MessageDeleteListener>? = null
     private var destroySubscribers = mutableListOf<DestroySubscription>()
 
+    internal var componentSessions: MutableMap<Int, ComponentStore> = mutableMapOf()
+    inner class ComponentStore {
+        private var store = mutableMapOf<String, Writable<*>>()
+        internal var hasChanged = false
+
+        @Suppress("UNCHECKED_CAST")
+        fun <T> writable(key: String, value: T): Writable<T> {
+            detectInvalidWritableDeclaration()
+            val writable = store.computeIfAbsent(key) {
+                val element = Writable(value)
+                return@computeIfAbsent expand(element)
+            }
+            writable.subscribe { _, _ -> hasChanged = true }
+            return writable as Writable<T>
+        }
+        @Suppress("UNUSED")
+        fun dealloc(key: String) {
+            store.remove(key)
+        }
+    }
+
     companion object {
         /**
-         * Defines how long we should wait before proceeding to re-render the component, this is intended to ensure
+         * Defines how long we should wait before proceeding to re-render the view, this is intended to ensure
          * that all other states being changed in that period is applied as well, preventing multiple unnecessary re-renders
          * which can be costly as we send HTTP requests to Discord.
          *
@@ -105,6 +139,25 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * be more than enough even when considering network latencies.
          */
         @JvmField @Volatile var autoDeferAfterMilliseconds: Long = 2350
+
+        internal const val RESERVED_VALUE_KEY = "&[value\$]"
+
+        /**
+         * Logs an [exception] paired with a suggestion when the [exception] is caused by a misuse of the
+         * Reakt rendering system.
+         *
+         * @param exception the exception to handle
+         */
+        @Suppress("SameReturnValue")
+        internal fun <T> suggestions(exception: Throwable): T? {
+            val message = exception.message ?: return null
+            if (message.contains("COMPONENT_CUSTOM_ID_DUPLICATED")) {
+                throw ReaktComponentDuplicateException(message)
+            } else {
+                logger.error("Failed to re-render message using Reakt with the following stacktrace.", exception)
+            }
+            return null
+        }
     }
 
     internal enum class RenderMode {
@@ -114,7 +167,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
-     * Subscribes a task to be ran whenever the component is being rendered, this happens on the initial render
+     * Subscribes a task to be ran whenever the view is being rendered, this happens on the initial render
      * and re-renders but takes a lower priority than the ones in [onInitialRender].
      * @param subscription the subscription to execute on render.
      */
@@ -123,8 +176,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
-     * Subscribes a task to be ran whenever the component is being rendered. This happens first before the actual
-     * component being rendered, therefore, you can use this to load data before the component is actually rendered.
+     * Subscribes a task to be ran whenever the view is being rendered. This happens first before the actual
+     * view being rendered, therefore, you can use this to load data before the view is actually rendered.
      * @param subscription the subscription to execute on first render.
      */
     fun onInitialRender(subscription: RenderSubscription) {
@@ -151,6 +204,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      *
      * @param subscription the subscription to execute.
      */
+    @Suppress("UNUSED")
     fun onDestroy(subscription: DestroySubscription) {
         destroySubscribers.add(subscription)
     }
@@ -188,7 +242,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             destroySubscribers.forEach(DestroySubscription::invoke)
 
             unsubscribe()
-            component = null
+            document = null
+            render = null
+
             this.unsubscribe = {}
             this.destroySubscribers = mutableListOf()
             this.resultingMessage = null
@@ -204,18 +260,18 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             this.expansions = mutableListOf()
             this.messageDeleteListenerManager?.remove()
             this.messageDeleteListenerManager = null
+            this.componentSessions = mutableMapOf()
         }
     }
 
     /**
-     * Renders the given component, this will also be used to re-render the component onwards. Note that using two
+     * Renders the given view, this will also be used to re-render the view onwards. Note that using two
      * renders will result in the last executed render being used.
-     * @param component the component to render.
+     * @param renderer the renderer to use.
      */
-    fun render(component: ReactComponent) {
+    fun render(renderer: ReactDocument) {
         try {
-            val element = apply(component)
-
+            val element = apply(renderer)
             when (renderMode) {
                 RenderMode.Interaction -> {
                     val (unsubscribe, message) = element.render(api)
@@ -243,13 +299,29 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
             this.rendered = true
         } catch (err: Exception) {
+            // @note propogate upwards.
+            if (err is ReaktRuleEnforcementException) {
+                throw err
+            }
             logger.error("An uncaught exception was received by Reakt's renderer with the following stacktrace.", err)
         }
     }
 
-    private fun apply(component: Component.() -> Unit): Component {
-        this.component = component
-        val element = Component()
+    private fun flatten(document: Document, into: Document) {
+        for (component in document.components) {
+            if (!component.hasRenderedOnce) {
+                component.rerender()
+            }
+
+            into.stack += component.document.stack
+            if (component.document.components.isNotEmpty()) {
+                flatten(component.document, into)
+            }
+        }
+    }
+
+    private fun apply(renderer: ReactDocument): View {
+        this.render = renderer
 
         if (!rendered) {
             firstRenderSubscribers.forEach {
@@ -269,8 +341,86 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
         }
 
-        component(element)
+        val oldDocument = this.document ?: Document()
+        val oldComponents = oldDocument.copyComponents()
+
+        val newDocument = Document()
+        renderer(newDocument)
+
+        val composition = Document()
+        val newComponents = newDocument.copyComponents()
+
+        // @note list of components that were re-rendered, so we can reference it when there are duplicates.
+        val renderedComponents = mutableListOf<Component>()
+
+        for (component in newComponents) {
+            var equivalence: Component? = null
+            for (component1 in renderedComponents) {
+                val equivalent = component.compare(component1)
+                if (equivalent) {
+                    equivalence = component1
+                    break
+                }
+            }
+
+            // @note only iterate older components when Reakt re-rendered.
+            if (rendered) {
+                for (component1 in oldComponents) {
+                    val equivalent = component.compare(component1)
+                    if (equivalent) {
+                        equivalence = component1
+                        break
+                    }
+                }
+            }
+
+            lateinit var document: Document
+            if (equivalence == null) {
+                if (!component.hasRenderedOnce) {
+                    component.rerender()
+                }
+
+                document = component.document
+                renderedComponents += component
+            } else {
+                if (equivalence.session.hasChanged) {
+                    equivalence.session.hasChanged = false
+                    equivalence.rerender()
+                }
+                // ensure that we swap the document inside the component
+                // so that the next rerender will utilize this new document.
+                component.document = equivalence.document
+                document = component.document
+            }
+
+            composition.components += component
+            composition.stack += document.stack
+
+            flatten(document, composition)
+        }
+
+        this.document = composition
+
+        val element = View()
+        for (stackElement in composition.stack) {
+            stackElement.render(element)
+        }
         return element
+    }
+
+    internal inline fun detectInvalidWritableDeclaration() {
+        val isInsideRenderMethod = StackWalker.getInstance().walk { stream ->
+            val frame = stream
+                .limit(6) // 6 frames is usually where we can determine where the render method is called
+                .dropWhile { !(it.methodName == "render" && it.className.startsWith("pw.mihou.reakt")) }
+                .findFirst()
+                .getOrNull()
+
+            return@walk frame != null
+        }
+        if (isInsideRenderMethod) {
+            throw ReaktStateInsideRenderMethodException
+        }
     }
 
     /**
@@ -286,15 +436,16 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      * and delegated variables pass their [Writable.getValue] result, so changes cannot be listened).
      *
      * @param value the initial value.
-     * @return a [Writable] with a [Subscription] that will re-render the [ReactComponent] when the state changes.
+     * @return a [Writable] with a [Subscription] that will re-render the [ReactView] when the state changes.
      */
     fun <T> writable(value: T): Writable<T> {
+        detectInvalidWritableDeclaration()
         val element = Writable(value)
         return expand(element)
     }
 
     /**
-     * Adds a [Subscription] that enables the [ReactComponent] to be re-rendered whenever the value of the [Writable]
+     * Adds a [Subscription] that enables the [ReactView] to be re-rendered whenever the value of the [Writable]
      * changes, this is what [writable] uses internally to react to changes.
      * @param writable the writable to subscribe.
      * @return the [Writable] with the re-render subscription attached.
@@ -303,32 +454,26 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         val stateUnsubscribe = writable.subscribe { _, _ ->
             try {
                 if (!mutex.tryLock()) return@subscribe
-                val component = this.component ?: return@subscribe
+                val render = this.render ?: return@subscribe
                 debounceTask?.cancel()
                 debounceTask = coroutine {
                     delay(debounceMillis)
                     this.unsubscribe()
 
                     debounceTask = null
-                    if (this.component == null) return@coroutine
+                    if (this.document == null) return@coroutine
                     val interactionUpdater = interactionUpdater
                     if (interactionUpdater != null) {
-                        val view = apply(component)
+                        val view = apply(render)
                         this.unsubscribe = view.render(interactionUpdater, api)
-                        interactionUpdater.update().exceptionally {
-                            logger.error("Failed to re-render message using Reakt with the following stacktrace.", it)
-                            return@exceptionally null
-                        }.thenAccept(::acknowledgeUpdate)
+                        interactionUpdater.update().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
                     } else {
                         val message = resultingMessage
                         if (message != null) {
                             val updater = message.createUpdater()
-                            val view = apply(component)
+                            val view = apply(render)
                             this.unsubscribe = view.render(updater, api)
-                            updater.replaceMessage().exceptionally {
-                                logger.error("Failed to re-render message using Reakt with the following stacktrace.", it)
-                                return@exceptionally null
-                            }.thenAccept(::acknowledgeUpdate)
+                            updater.replaceMessage().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
                         }
                     }
 
@@ -508,7 +653,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     /**
      * Writable are the equivalent to state in React.js, or [writable] in Svelte (otherwise known as `$state` in Svelte Runes),
      * these are simply properties that will execute subscribed tasks whenever the property changes, enabling reactivity.
-     * [Reakt] uses this to support re-rendering the [ReactComponent] whenever a state changes, allowing developers to write
+     * [Reakt] uses this to support re-rendering the [ReactView] whenever a state changes, allowing developers to write
      * incredibly reactive yet beautifully simple code that are similar to Svelte.
      *
      * We recommend using the constructor method to create a [Writable] for use cases outside of [Reakt] scope, otherwise
@@ -632,10 +777,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             return _value.get().toString()
         }
 
-        override fun hashCode(): Int {
-            return _value.get().hashCode()
-        }
-
         override fun equals(other: Any?): Boolean {
             val value = _value.get()
             if (other == null && value == null) return true
@@ -644,11 +785,284 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    /**
-     * An internal class of [Reakt]. You do not need to touch this at all, and it is not recommended to even create
-     * this by yourself as it will do nothing.
-     */
-    class Component internal constructor() {
+    inner class Component internal constructor(
+        private val qualifiedName: String,
+        private val constructor: ComponentConstructor
+    ) {
+        private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
+        private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
+
+        internal var render: (Document.() -> Unit)? = null
+            private set
+
+        internal var props: Props = mapOf()
+            private set
+
+        internal var document = Document()
+
+        internal var hasRenderedOnce = false
+            private set
+        private var constructed = false
+
+        val session by lazy {
+            componentSessions.computeIfAbsent(hashCode) {
+                ComponentStore()
+            }
+        }
+        private val hashCode get(): Int {
+            var result = 1
+            fun inc(vararg elements: Any?) {
+                for (element in elements) {
+                    result = 31 * result + (element?.hashCode() ?: 0)
+                }
+            }
+            for ((key, value) in props) {
+                // when dealing with writable's origin value, ignore it.
+                if (key.endsWith(RESERVED_VALUE_KEY)) continue
+                inc(key, value)
+            }
+            inc(qualifiedName)
+            return result
+        }
+
+        /**
+         * [render] defines how the component should be rendered.
+         */
+        fun render(document: Document.() -> Unit) {
+            this.render = document
+        }
+
+        /**
+         * [onBeforeMount] adds a [ComponentBeforeMountSubscription] to this component that will execute the
+         * subscription right before mounting. This is similar to [onRender] but for a specific component only,
+         * this happens before the component is rendered, which means you can use this to manipulate the different
+         * values of the component.
+         */
+        fun onBeforeMount(subscription: ComponentBeforeMountSubscription) {
+            beforeMountListeners.add(subscription)
+        }
+
+        /**
+         * [onAfterMount] adds a [ComponentAfterMountSubscription] to this component that will execute the
+         * subscription after mounting. This is similar to [onUpdate], but rather than a full update on the message,
+         * it refers to after the component is rendered (no guarantee that the message was updated yet).
+         */
+        fun onAfterMount(subscription: ComponentAfterMountSubscription) {
+            afterMountListeners.add(subscription)
+        }
+
+        /**
+         * [prop] gets the [prop] with the [name]. If there are no props with the name, it will return [null] instead.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop's value.
+         */
+        fun anyProp(name: String): Any? = props[name.lowercase()]
+
+        /**
+         * [prop] gets the [prop] with the [name] as [T] type. If there are no props with the name, and with the
+         * right type, it will return [null] instead.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop as a [T] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         */
+        inline fun <reified T> prop(name: String): T? {
+            val value = anyProp(name) ?: return null
+            return (value as? T) ?: throw PropTypeMismatch(name, T::class.java, value::class.java)
+        }
+
+        /**
+         * [ensureProp] ensures that the [prop] with the [name] exists and returns it. This is
+         * recommended for components as it tells the developer what props you are expecting and
+         * what it's type should be.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop as a [T] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
+         */
+        inline fun <reified T> ensureProp(name: String): T {
+            return prop(name) ?: throw UnknownPropException(name)
+        }
+
+        /**
+         * [writableProp] gets a [prop] of a [Writable] type, this is intended to be able to use
+         * delegation much simpler without having to type out the entire [Writable] type.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop as a [Writable] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
+         */
+        inline fun <reified T> writableProp(name: String): Writable<T> {
+            return ensureProp(name)
+        }
+
+        /**
+         * [readonlyProp] gets a [prop] of a [ReadOnly] type, this is intended to be able to use
+         * delegation much simpler without having to type out the entire [ReadOnly] type.
+         *
+         * @param name the name of the prop to retrieve.
+         * @return the prop as a [ReadOnly] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
+         */
+        inline fun <reified T> readonlyProp(name: String): ReadOnly<T> {
+            return ensureProp(name)
+        }
+
+        internal fun rerender() {
+            synchronized(this) {
+                document = Document()
+                val render = render ?: throw NoRenderFoundException(qualifiedName)
+
+                for (beforeMountListener in beforeMountListeners) {
+                    beforeMountListener()
+                }
+                render(document)
+                hasRenderedOnce = true
+                for (afterMountListener in afterMountListeners) {
+                    coroutine {
+                        afterMountListener()
+                    }
+                }
+            }
+        }
+
+        operator fun invoke(vararg props: Pair<String, Any?>) {
+            synchronized(this) {
+                val statefulProps = mutableListOf<Pair<String, Any?>>()
+                val mutableProps = props.associate {
+                    if (it.first.endsWith(RESERVED_VALUE_KEY))
+                        throw IllegalArgumentException("$qualifiedName component has an illegal prop passed '${it.first}'.")
+
+                    val value = it.second
+                    if (value != null && value is Writable<*> || value is ReadOnly<*>) {
+                        statefulProps.add(it.first.lowercase() to when(value) {
+                            is Writable<*> -> value.get()
+                            is ReadOnly<*> -> value.get()
+                            else -> value
+                        })
+                    }
+                    return@associate it.first.lowercase() to value
+                }.toMutableMap()
+
+                if (statefulProps.isNotEmpty())  {
+                    // for comparisons, we need to have the initial prop value for the writable/readonly
+                    // to determine if the prop changed.
+                    for ((key, value) in statefulProps) {
+                        mutableProps["$key$RESERVED_VALUE_KEY"] = value
+                    }
+                }
+
+                this.props = mutableProps
+                if (!constructed) {
+                    constructor(this)
+                }
+            }
+        }
+
+        internal fun compare(component: Component): Boolean {
+            if (this::class.java != component::class.java) return false
+            if (qualifiedName != component.qualifiedName) return false
+            if (hashCode != component.hashCode) return false
+            if (props.containsKey("%key") && component.props.containsKey("%key")) {
+                val key = component.props["%key"]
+                val key2 = this.props["%key"]
+                if (key != key2) {
+                    return false
+                }
+            } else {
+                for ((key, value) in props) {
+                    if (key.endsWith(RESERVED_VALUE_KEY)) continue // ignore since it's a corresponding pair.
+                    if (!component.props.containsKey(key)) {
+                        return false
+                    }
+                    val newValue = component.props[key]
+                    if (newValue != null && value != null) {
+                        if (newValue::class.java != value::class.java) return false
+                        when(value) {
+                            is Writable<*>, is ReadOnly<*> -> {
+                                if (!component.props.containsKey("$key$RESERVED_VALUE_KEY"))
+                                    throw IllegalStateException("Reakt component '$qualifiedName' has ${value::class.java.name} but without the " +
+                                            "corresponding comparison prop. This shouldn't happen.")
+
+                                val initialValue = component.props["$key$RESERVED_VALUE_KEY"]
+                                val comparisonValue = this.props["$key$RESERVED_VALUE_KEY"]
+                                if (initialValue != comparisonValue) return false
+                            }
+                        }
+                    }
+                    if (newValue != value) {
+                        return false
+                    }
+                }
+            }
+
+            return true
+        }
+    }
+
+    class StackElement internal constructor() {
+        internal var embed: EmbedBuilder? = null
+        internal var component: LowLevelComponent? = null
+        internal var listener: GloballyAttachableListener? = null
+        internal var uuid: String? = null
+        internal var textContent: String? = null
+
+        fun render(view: View) {
+            val embed = embed
+            val component =  component
+            val listener = listener
+            val uuid = uuid
+            val textContent = textContent
+
+            if (embed != null) {
+                view.embeds += embed
+            }
+
+            if (component != null) {
+                view.components += component
+            }
+
+            if (listener != null) {
+                view.listeners += listener
+            }
+
+            if (uuid != null) {
+                view.uuids += uuid
+            }
+
+            if (textContent != null) {
+                view.contents = textContent
+            }
+        }
+    }
+
+    inner class Document internal constructor() {
+        internal var components = mutableListOf<Component>()
+        internal var stack: MutableStack = mutableListOf()
+            private set
+
+        internal fun stack(constructor: StackElement.() -> Unit) {
+            val element = StackElement()
+            constructor(element)
+            this.stack += element
+        }
+
+        internal fun copyComponents(): List<Component> {
+            return components.toList()
+        }
+
+        fun component(qualifiedName: String, constructor: Component.() -> Unit): Component {
+            val component = Component(qualifiedName, constructor)
+            components += component
+            return component
+        }
+    }
+
+    class View internal constructor() {
         internal var embeds: MutableList<EmbedBuilder> = mutableListOf()
         internal var contents: String? = null
         internal var components: MutableList<LowLevelComponent> = mutableListOf()
@@ -760,3 +1174,5 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 }
+
+typealias MutableStack = MutableList<Reakt.StackElement>

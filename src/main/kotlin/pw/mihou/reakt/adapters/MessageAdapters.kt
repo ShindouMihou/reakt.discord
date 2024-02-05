@@ -20,7 +20,7 @@ private fun CompletableFuture<Message>.ack(react: Reakt): CompletableFuture<Mess
     return this.thenApply { message ->
         react.acknowledgeUpdate(message)
         return@thenApply message
-    }
+    }.exceptionally(Reakt::suggestions)
 }
 
 /**

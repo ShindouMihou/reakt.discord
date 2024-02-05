@@ -34,5 +34,5 @@ fun <Interaction: InteractionBase> Interaction.R(ephemeral: Boolean, lifetime: D
         r.acknowledgeUpdate(message)
 
         return@thenApply it
-    }
+    }.exceptionally(Reakt::suggestions)
 }
