@@ -3,25 +3,15 @@ package pw.mihou.reakt.elements
 import pw.mihou.reakt.Reakt
 import pw.mihou.reakt.styles.BodyConstructor
 
-typealias ReaktTextConstructor = Text.() -> Unit
-fun Reakt.Document.Text(text: ReaktTextConstructor) = component("pw.mihou.reakt.elements.Text") {
-    val constructor =  ensureProp<ReaktTextConstructor>("constructor")
+typealias ReaktTextConstructor = BodyConstructor.() -> Unit
+fun Reakt.Document.Text(spaced: Boolean = false, constructor: ReaktTextConstructor) = component("pw.mihou.reakt.elements.Text") {
+    @Suppress("NAME_SHADOWING") val constructor =  ensureProp<ReaktTextConstructor>("constructor")
     render {
         // @native directly injects a text element into the stack.
         document.stack {
-            val element = Text()
-            constructor(element)
-
-            textContent = element.content
+            val bodyConstructor = BodyConstructor(autoAppendNewLines = spaced)
+            constructor(bodyConstructor)
+            textContent = bodyConstructor.content
         }
     }
-}("constructor" to text) // @note auto-invoke component upon creation.
-
-class Text {
-    internal var content: String = ""
-    fun Body(spaced: Boolean = false, builder: BodyConstructor.() -> Unit) {
-        val constructor = BodyConstructor(autoAppendNewLines = spaced)
-        builder(constructor)
-        content = constructor.content
-    }
-}
+}("spaced" to spaced, "constructor" to constructor) // @note auto-invoke component upon creation.
