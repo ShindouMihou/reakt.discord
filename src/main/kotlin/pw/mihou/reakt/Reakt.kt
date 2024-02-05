@@ -951,9 +951,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 if (statefulProps.isNotEmpty())  {
                     // for comparisons, we need to have the initial prop value for the writable/readonly
                     // to determine if the prop changed.
-                    for ((key, value) in statefulProps) {
-                        mutableProps["$key$RESERVED_VALUE_KEY"] = value
-                    }
+                    mutableProps += statefulProps
                 }
 
                 this.props = mutableProps
@@ -1070,10 +1068,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal var uuids: MutableList<String> = mutableListOf()
 
         private fun attachListeners(api: DiscordApi): Unsubscribe {
-            val listenerManagers = listeners.map { api.addListener(it) }
+            val listenerManagers = listeners.map(api::addListener)
             return {
                 listenerManagers.forEach { managers ->
-                    managers.forEach { it.remove() }
+                    managers.forEach(ListenerManager<*>::remove)
                 }
                 listeners = mutableListOf()
 
@@ -1081,7 +1079,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 contents = null
                 embeds = mutableListOf()
 
-                uuids.forEach { UuidGenerator.deny(it) }
+                uuids.forEach(UuidGenerator::deny)
                 uuids = mutableListOf()
             }
         }
@@ -1125,7 +1123,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     this.setContent(contents)
                 }
 
-                chunkComponents().forEach { this.addComponents(it) }
+                chunkComponents().forEach(this::addComponents)
             }
         }
 
@@ -1139,7 +1137,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 if (contents != null) {
                     this.setContent(contents)
                 }
-                chunkComponents().forEach { this.addComponents(it) }
+                chunkComponents().forEach(this::addComponents)
             }
             return attachListeners(api)
         }
@@ -1152,7 +1150,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 if (contents != null) {
                     this.setContent(contents)
                 }
-                chunkComponents().forEach { this.addComponents(it) }
+                chunkComponents().forEach(this::addComponents)
             }
             return attachListeners(api)
         }
@@ -1168,7 +1166,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 if (contents != null) {
                     this.setContent(contents)
                 }
-                chunkComponents().forEach { this.addComponents(it) }
+                chunkComponents().forEach(this::addComponents)
             }
             return attachListeners(api)
         }
