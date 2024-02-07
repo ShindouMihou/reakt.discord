@@ -27,6 +27,7 @@ import pw.mihou.reakt.utils.coroutine
 import pw.mihou.reakt.uuid.UuidGenerator
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.jvm.optionals.getOrNull
@@ -69,6 +70,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     private var unsubscribe: Unsubscribe = {}
 
     private var render: ReactDocument? = null
+    private var renderOnDestroy: ReactDocument? = null
+
     private var document: Document? = Document()
 
     private var debounceTask: Job? = null
@@ -81,6 +84,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
     private var updateSubscribers = mutableListOf<UpdateSubscription>()
     private var expansions = mutableListOf<Unsubscribe>()
+
+    private val isDestroying = AtomicBoolean(false)
 
     private var destroyJob = if (lifetime.isInfinite()) null else coroutine {
         delay(lifetime.inWholeMilliseconds)
@@ -215,6 +220,14 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      */
     internal fun acknowledgeUpdate(message: Message) {
         this.resultingMessage = message
+
+        // Do not execute `updateSubscribes` and others when `isDestroying` because we won't
+        // want any other accidental side  effects to happen, such as another state re-updating.
+        if (isDestroying.get()) {
+            freeReferences()
+            return
+        }
+
         if (api.intents.contains(Intent.GUILD_MESSAGES) || api.intents.contains(Intent.DIRECT_MESSAGES)) {
             messageDeleteListenerManager?.remove()
             messageDeleteListenerManager = this.resultingMessage?.run {
@@ -222,6 +235,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     destroy()
                 }
             }
+        }
+        destroyJob = if (lifetime.isInfinite()) null else coroutine {
+            delay(lifetime.inWholeMilliseconds)
+            destroy()
         }
         updateSubscribers.forEach {
             try {
@@ -233,35 +250,65 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
+     * [freeReferences] unsubscribes and clears any potential references to this [Reakt] instance.
+     * This replaces all nullables with null, all lists with empty lists and all others with empty
+     * variants, allowing the garbage collector to claim this instance.
+     */
+    private fun freeReferences() {
+        unsubscribe()
+        document = null
+        render = null
+
+        this.unsubscribe = {}
+        this.destroySubscribers = mutableListOf()
+        this.resultingMessage = null
+        this.interactionUpdater = null
+        this.updateSubscribers = mutableListOf()
+        this.messageUpdater = null
+        this.messageBuilder = null
+        this.renderSubscribers = mutableListOf()
+        this.message = null
+        this.debounceTask = null
+        this.destroyJob = null
+        this.expansions.forEach(Unsubscribe::invoke)
+        this.expansions = mutableListOf()
+        this.messageDeleteListenerManager?.remove()
+        this.messageDeleteListenerManager = null
+        this.componentSessions = mutableMapOf()
+        this.renderOnDestroy = null
+
+        isDestroying.set(false)
+    }
+
+    /**
      * Destroys any references to this [Reakt] instance. It is recommended to do this when
      * you no longer need the interactivity as this will free up a ton of unused memory that should've
      * been free.
      */
+    @Suppress("MemberVisibilityCanBePrivate")
     fun destroy() {
-        synchronized(destroySubscribers) {
-            destroySubscribers.forEach(DestroySubscription::invoke)
+        if (isDestroying.get()) return
+        destroySubscribers.forEach(DestroySubscription::invoke)
 
-            unsubscribe()
-            document = null
-            render = null
-
-            this.unsubscribe = {}
-            this.destroySubscribers = mutableListOf()
-            this.resultingMessage = null
-            this.interactionUpdater = null
-            this.updateSubscribers = mutableListOf()
-            this.messageUpdater = null
-            this.messageBuilder = null
-            this.renderSubscribers = mutableListOf()
-            this.message = null
-            this.debounceTask = null
-            this.destroyJob = null
-            this.expansions.forEach(Unsubscribe::invoke)
-            this.expansions = mutableListOf()
-            this.messageDeleteListenerManager?.remove()
-            this.messageDeleteListenerManager = null
-            this.componentSessions = mutableMapOf()
+        isDestroying.set(true)
+        val renderOnDestroy = renderOnDestroy
+        if (renderOnDestroy == null) {
+            freeReferences()
+            return
         }
+
+        // we don't free references here because ::acknowledgeUpdate will see [isDestroying] as [true] and
+        // will free references once it is updated, ensuring the update gets through.
+        rerender(renderOnDestroy)
+    }
+
+    /**
+     * [renderOnDestroy] renders the [renderer] whenever [Reakt] activates a destruction. This can be used to
+     * notify the user that they can no longer use this, or enable some retries to recreate the message.
+     */
+    @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
+    fun renderOnDestroy(renderer: ReactDocument) {
+        renderOnDestroy = renderer
     }
 
     /**
@@ -445,6 +492,29 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
+     * Re-renders the entire message with the given [render].
+     * @param render the render to re-render with.
+     */
+    private fun rerender(render: ReactDocument) {
+        this.unsubscribe()
+        if (this.document == null) return
+        val interactionUpdater = interactionUpdater
+        if (interactionUpdater != null) {
+            val view = apply(render)
+            this.unsubscribe = view.render(interactionUpdater, api)
+            interactionUpdater.update().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
+        } else {
+            val message = resultingMessage
+            if (message != null) {
+                val updater = message.createUpdater()
+                val view = apply(render)
+                this.unsubscribe = view.render(updater, api)
+                updater.replaceMessage().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
+            }
+        }
+    }
+
+    /**
      * Adds a [Subscription] that enables the [ReactView] to be re-rendered whenever the value of the [Writable]
      * changes, this is what [writable] uses internally to react to changes.
      * @param writable the writable to subscribe.
@@ -458,30 +528,12 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 debounceTask?.cancel()
                 debounceTask = coroutine {
                     delay(debounceMillis)
-                    this.unsubscribe()
-
                     debounceTask = null
+
                     if (this.document == null) return@coroutine
-                    val interactionUpdater = interactionUpdater
-                    if (interactionUpdater != null) {
-                        val view = apply(render)
-                        this.unsubscribe = view.render(interactionUpdater, api)
-                        interactionUpdater.update().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
-                    } else {
-                        val message = resultingMessage
-                        if (message != null) {
-                            val updater = message.createUpdater()
-                            val view = apply(render)
-                            this.unsubscribe = view.render(updater, api)
-                            updater.replaceMessage().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
-                        }
-                    }
+                    rerender(render)
 
                     destroyJob?.cancel()
-                    destroyJob = if (lifetime.isInfinite()) null else coroutine {
-                        delay(lifetime.inWholeMilliseconds)
-                        destroy()
-                    }
                 }
                 mutex.unlock()
             } catch (err: Exception) {
