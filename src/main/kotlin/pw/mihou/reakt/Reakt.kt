@@ -227,6 +227,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             freeReferences()
             return
         }
+
         if (api.intents.contains(Intent.GUILD_MESSAGES) || api.intents.contains(Intent.DIRECT_MESSAGES)) {
             messageDeleteListenerManager?.remove()
             messageDeleteListenerManager = this.resultingMessage?.run {
@@ -234,6 +235,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     destroy()
                 }
             }
+        }
+        destroyJob = if (lifetime.isInfinite()) null else coroutine {
+            delay(lifetime.inWholeMilliseconds)
+            destroy()
         }
         updateSubscribers.forEach {
             try {
@@ -529,10 +534,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     rerender(render)
 
                     destroyJob?.cancel()
-                    destroyJob = if (lifetime.isInfinite()) null else coroutine {
-                        delay(lifetime.inWholeMilliseconds)
-                        destroy()
-                    }
                 }
                 mutex.unlock()
             } catch (err: Exception) {
