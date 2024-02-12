@@ -2,8 +2,12 @@ package pw.mihou.reakt.adapters
 
 import org.javacord.api.interaction.InteractionBase
 import pw.mihou.reakt.Reakt
+import pw.mihou.reakt.ReaktConstructor
+import pw.mihou.reakt.SuspendingReaktConstructor
 import pw.mihou.reakt.deferrable.ReaktAutoResponse
 import pw.mihou.reakt.deferrable.autoDefer
+import pw.mihou.reakt.utils.coroutine
+import pw.mihou.reakt.utils.suspend
 import java.util.concurrent.CompletableFuture
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
@@ -21,7 +25,7 @@ import kotlin.time.Duration.Companion.hours
  * @param reakt the entire procedure over how rendering the response works.
  */
 @JvmSynthetic
-fun <Interaction: InteractionBase> Interaction.R(ephemeral: Boolean, lifetime: Duration = 1.hours, reakt: Reakt.() -> Unit): CompletableFuture<ReaktAutoResponse> {
+fun <Interaction: InteractionBase> Interaction.R(ephemeral: Boolean, lifetime: Duration = 1.hours, reakt: ReaktConstructor): CompletableFuture<ReaktAutoResponse> {
     val r = Reakt(this.api, Reakt.RenderMode.Interaction, lifetime)
     return autoDefer(ephemeral) {
         reakt(r)
@@ -36,3 +40,7 @@ fun <Interaction: InteractionBase> Interaction.R(ephemeral: Boolean, lifetime: D
         return@thenApply it
     }.exceptionally(Reakt::suggestions)
 }
+
+@JvmSynthetic
+fun <Interaction: InteractionBase> Interaction.AsyncR(ephemeral: Boolean, lifetime: Duration = 1.hours, react: SuspendingReaktConstructor) =
+    R(ephemeral, lifetime) { this suspend react }

@@ -52,6 +52,8 @@ typealias Derive<T, K> = (T) -> K
 
 typealias Props = Map<String, Any?>
 typealias ComponentConstructor = Reakt.Component.() -> Unit
+typealias ReaktConstructor = Reakt.() -> Unit
+typealias SuspendingReaktConstructor = suspend Reakt.() -> Unit
 
 /**
  * [Reakt] is the React-Svelte inspired method of rendering (or sending) messages as response to various scenarios such

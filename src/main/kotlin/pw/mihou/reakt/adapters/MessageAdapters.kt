@@ -6,6 +6,10 @@ import org.javacord.api.DiscordApi
 import org.javacord.api.entity.message.Message
 import org.javacord.api.entity.message.Messageable
 import org.javacord.api.event.message.CertainMessageEvent
+import pw.mihou.reakt.ReaktConstructor
+import pw.mihou.reakt.SuspendingReaktConstructor
+import pw.mihou.reakt.utils.coroutine
+import pw.mihou.reakt.utils.suspend
 import java.util.concurrent.CompletableFuture
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
@@ -51,7 +55,7 @@ fun CertainMessageEvent.R(lifetime: Duration = 1.hours, react: Reakt.() -> Unit)
  * @param react the entire procedure over how rendering the response works.
  */
 @JvmSynthetic
-fun Messageable.R(api: DiscordApi, lifetime: Duration = 1.hours, react: Reakt.() -> Unit): CompletableFuture<Message> {
+fun Messageable.R(api: DiscordApi, lifetime: Duration = 1.hours, react: ReaktConstructor): CompletableFuture<Message> {
     val r = Reakt(api, Reakt.RenderMode.Message, lifetime)
     react(r)
 
@@ -67,10 +71,22 @@ fun Messageable.R(api: DiscordApi, lifetime: Duration = 1.hours, react: Reakt.()
  * @param lifetime the lifetime it takes before the [Reakt] destroys itself.
  * @param react the entire procedure over how rendering the response works.
  */
-fun Message.R(lifetime: Duration = 1.hours, react: Reakt.() -> Unit): CompletableFuture<Message> {
+fun Message.R(lifetime: Duration = 1.hours, react: ReaktConstructor): CompletableFuture<Message> {
     val r = Reakt(api, Reakt.RenderMode.Message, lifetime)
     react(r)
 
     r.acknowledgeUpdate(this)
     return r.messageUpdater!!.replaceMessage().ack(r)
 }
+
+@JvmSynthetic
+fun Messageable.AsyncR(api: DiscordApi, lifetime: Duration = 1.hours, react: SuspendingReaktConstructor) =
+    R(api, lifetime) { this suspend react }
+
+@JvmSynthetic
+fun Message.AsyncR(lifetime: Duration = 1.hours, react: SuspendingReaktConstructor) =
+    R(lifetime) { this suspend react }
+
+@JvmSynthetic
+fun CertainMessageEvent.AsyncR(lifetime: Duration = 1.hours, react: SuspendingReaktConstructor) =
+    R(lifetime) { this suspend react }
