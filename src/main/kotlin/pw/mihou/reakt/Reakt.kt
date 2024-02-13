@@ -98,8 +98,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     private var destroySubscribers = mutableListOf<DestroySubscription>()
 
     internal var componentSessions: MutableMap<Int, ComponentStore> = mutableMapOf()
+    @Suppress("MemberVisibilityCanBePrivate", "unused")
     inner class ComponentStore {
         private var store = mutableMapOf<String, Writable<*>>()
+        private var references = mutableMapOf<String, Any?>()
         internal var hasChanged = false
 
         @Suppress("UNCHECKED_CAST")
@@ -112,6 +114,28 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             writable.subscribe { _, _ -> hasChanged = true }
             return writable as Writable<T>
         }
+
+        /**
+         * A [ref] is a referential element in a [Component]. References differ from [writable] in that
+         * they simply store values that are persisted in the component as all values inside a component
+         * is recreated each time, a [ref] aims to resolve that gap and helps provide an persisted value
+         * that doesn't recreate each time a re-render happen.
+         *
+         * To update a ref, simply use [updateRef] method, and to deallocate a reference, simply use [deallocRef].
+         */
+        @Suppress("UNCHECKED_CAST")
+        fun <T> ref(key: String, defaultValue: T): T? {
+            return references.computeIfAbsent(key) { defaultValue } as? T
+        }
+
+        fun updateRef(key: String, value: Any) {
+            references[key] = value
+        }
+
+        fun deallocRef(key: String) {
+            references.remove(key)
+        }
+
         @Suppress("UNUSED")
         fun dealloc(key: String) {
             store.remove(key)
