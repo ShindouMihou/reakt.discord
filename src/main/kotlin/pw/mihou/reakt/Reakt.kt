@@ -993,7 +993,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
                     val value = it.second
                     if (value != null && value is Writable<*> || value is ReadOnly<*>) {
-                        statefulProps.add(it.first.lowercase() to when(value) {
+                        statefulProps.add(it.first.lowercase() + RESERVED_VALUE_KEY to when(value) {
                             is Writable<*> -> value.get()
                             is ReadOnly<*> -> value.get()
                             else -> value
