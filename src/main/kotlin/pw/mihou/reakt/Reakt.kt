@@ -498,11 +498,12 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      * @param render the render to re-render with.
      */
     private fun rerender(render: ReactDocument) {
-        this.unsubscribe()
         if (this.document == null) return
         val interactionUpdater = interactionUpdater
         if (interactionUpdater != null) {
             val view = apply(render)
+
+            this.unsubscribe()
             this.unsubscribe = view.render(interactionUpdater, api)
             interactionUpdater.update().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
         } else {
@@ -510,6 +511,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             if (message != null) {
                 val updater = message.createUpdater()
                 val view = apply(render)
+
+                this.unsubscribe()
                 this.unsubscribe = view.render(updater, api)
                 updater.replaceMessage().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
             }
