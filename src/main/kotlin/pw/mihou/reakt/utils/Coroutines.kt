@@ -18,7 +18,7 @@ fun coroutine(task: suspend () -> Unit) =
     }
 
 internal infix fun Reakt.suspend(constructor: SuspendingReaktConstructor) {
-    coroutine {
+    runBlocking {
         constructor()
     }
 }
