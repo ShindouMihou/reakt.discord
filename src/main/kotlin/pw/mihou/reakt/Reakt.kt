@@ -1122,7 +1122,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal var uuids: MutableList<String> = mutableListOf()
 
         private fun attachListeners(api: DiscordApi): Unsubscribe {
-            val listenerManagers = listeners.map(api::addListener)
+            val listenerManagers = listeners.map { api.addListener(it) }
             return {
                 listenerManagers.forEach { managers ->
                     managers.forEach(ListenerManager<*>::remove)
