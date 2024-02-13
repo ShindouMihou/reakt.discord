@@ -56,7 +56,7 @@ fun Reakt.Document.Button(
     val customId = prop<String>("customId")
     val emoji = prop<String>("emoji")
     val disabled = ensureProp<Boolean>("disabled")
-    val onClick = prop<ReaktButtonClickListener>("onClick")
+    val onClick = prop<ReaktButtonClickListener>("onclick")
 
     render {
         // @native directly injects a button element into the stack.
