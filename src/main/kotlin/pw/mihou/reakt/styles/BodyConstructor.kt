@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package pw.mihou.reakt.styles
 
 import java.time.Instant
@@ -53,14 +55,76 @@ class BodyConstructor internal constructor(var autoAppendNewLines: Boolean) {
         return prefix to suffix
     }
 
-    private fun append(line: String) {
+    @Suppress("MemberVisibilityCanBePrivate")
+    fun append(line: String) {
         builder.append(if (autoAppendNewLines) "\n$line" else line)
     }
 
     infix fun BodyConstructor.append(text: String) {
         append(text)
     }
+
     val String.append get() = append(this)
+
+    /**
+     * Renders a bold text. We recommend using [p] when you want to stack different
+     * styling over one another.
+     */
+    val String.bold get() = bold(this)
+
+    /**
+     * Renders an underlined text. We recommend using [p] when you want to stack different
+     * styling over one another.
+     */
+    val String.underlined get() = underline(this)
+
+
+    /**
+     * Renders an italicized text. We recommend using [p] when you want to stack different
+     * styling over one another.
+     */
+    val String.italicized get() = italic(this)
+
+
+    /**
+     * Renders a marked text. We recommend using [p] when you want to stack different
+     * styling over one another.
+     */
+    val String.marked get() = mark(this)
+
+
+    /**
+     * Renders a spoilered text. We recommend using [p] when you want to stack different
+     * styling over one another.
+     */
+    val String.spoilered get() = spoiler(this)
+
+
+    /**
+     * Renders a strikethrough text. We recommend using [p] when you want to stack different
+     * styling over one another.
+     */
+    val String.deleted get() = del(this)
+
+
+    /**
+     * Renders the text as a primary heading. We recommend using [p] when you want to stack different
+     * styling over one another.
+     */
+    val String.h1 get() = h1(this)
+
+    /**
+     * Renders the text as a secondary heading. We recommend using [p] when you want to stack different
+     * styling over one another.
+     */
+    val String.h2 get() = h2(this)
+
+    /**
+     * Renders the text as a tertiary heading. We recommend using [p] when you want to stack different
+     * styling over one another.
+     */
+    val String.h3 get() = h3(this)
+
 
     /**
      * Renders a regular text content, unlike methods such as [bold], [italic], you can write this as unstyled
@@ -73,6 +137,14 @@ class BodyConstructor internal constructor(var autoAppendNewLines: Boolean) {
         val (prefix, suffix) = renderTextStyles(*styles)
         return prefix + text + suffix
     }
+
+    /**
+     * Renders an underlined text. We recommend using [p] when you want to stack different
+     * styling over one another.
+     *
+     * @param text the text to render.
+     */
+    fun underline(text: String) = "__${text}__"
 
     /**
      * Renders a bold text. We recommend using [p] when you want to stack different
@@ -117,7 +189,7 @@ class BodyConstructor internal constructor(var autoAppendNewLines: Boolean) {
     /**
      * Renders a next line, we recommend using `StyledBody` instead when next text has a next line.
      */
-    fun br(): String = "\n"
+    val br = "\n"
 
     /**
      * Renders a link text that allows users to click and be redirected to the [href].
