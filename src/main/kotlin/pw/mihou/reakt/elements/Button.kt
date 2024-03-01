@@ -1,5 +1,6 @@
 package pw.mihou.reakt.elements
 
+import org.javacord.api.entity.emoji.Emoji
 import org.javacord.api.entity.message.component.ButtonBuilder
 import org.javacord.api.entity.message.component.ButtonStyle
 import org.javacord.api.event.interaction.ButtonClickEvent
@@ -11,33 +12,37 @@ fun Reakt.Document.PrimaryButton(
     label: String,
     customId: String? = null,
     emoji: String? = null,
+    customEmoji: Emoji? = null,
     disabled: Boolean = false,
     onClick: ((event: ButtonClickEvent) -> Unit)? = null
-) = Button(ButtonStyle.PRIMARY, label, customId, emoji, disabled, onClick)
+) = Button(ButtonStyle.PRIMARY, label, customId, emoji, customEmoji, disabled, onClick)
 
 fun Reakt.Document.SecondaryButton(
     label: String,
     customId: String? = null,
     emoji: String? = null,
+    customEmoji: Emoji? = null,
     disabled: Boolean = false,
     onClick: ((event: ButtonClickEvent) -> Unit)? = null
-) = Button(ButtonStyle.SECONDARY, label, customId, emoji, disabled, onClick)
+) = Button(ButtonStyle.SECONDARY, label, customId, emoji, customEmoji, disabled, onClick)
 
 fun Reakt.Document.SuccessButton(
     label: String,
     customId: String? = null,
     emoji: String? = null,
+    customEmoji: Emoji? = null,
     disabled: Boolean = false,
     onClick: ((event: ButtonClickEvent) -> Unit)? = null
-) = Button(ButtonStyle.SUCCESS, label, customId, emoji, disabled, onClick)
+) = Button(ButtonStyle.SUCCESS, label, customId, emoji, customEmoji, disabled, onClick)
 
 fun Reakt.Document.DangerButton(
     label: String,
     customId: String? = null,
     emoji: String? = null,
+    customEmoji: Emoji? = null,
     disabled: Boolean = false,
     onClick: ((event: ButtonClickEvent) -> Unit)? = null
-) = Button(ButtonStyle.DANGER, label, customId, emoji, disabled, onClick)
+) = Button(ButtonStyle.DANGER, label, customId, emoji, customEmoji, disabled, onClick)
 
 typealias ReaktButtonClickListener = ((event: ButtonClickEvent) -> Unit)
 
@@ -47,6 +52,7 @@ fun Reakt.Document.Button(
     label: String,
     customId: String? = null,
     emoji: String? = null,
+    customEmoji: Emoji? = null,
     disabled: Boolean = false,
     onClick: ReaktButtonClickListener? = null
 ) = component("pw.mihou.reakt.elements.Button") {
@@ -55,6 +61,7 @@ fun Reakt.Document.Button(
     val label = ensureProp<String>("label")
     val customId = prop<String>("customId")
     val emoji = prop<String>("emoji")
+    val customEmoji = prop<Emoji>("customEmoji")
     val disabled = ensureProp<Boolean>("disabled")
     val onClick = prop<ReaktButtonClickListener>("onclick")
 
@@ -67,6 +74,10 @@ fun Reakt.Document.Button(
 
             if (emoji != null) {
                 button.setEmoji(emoji)
+            }
+
+            if (customEmoji != null) {
+                button.setEmoji(customEmoji)
             }
 
             button.setDisabled(disabled)
@@ -91,4 +102,4 @@ fun Reakt.Document.Button(
         }
     }
 }("style" to style, "label" to label, "customId" to customId,
-    "emoji"  to emoji, "disabled" to disabled, "onclick" to onClick) // @note auto-invoke component upon creation.
+    "emoji"  to emoji, "disabled" to disabled, "onclick" to onClick, "customEmoji" to customEmoji) // @note auto-invoke component upon creation.
