@@ -25,11 +25,9 @@ fun onEvent(event: NexusCommandEvent) {
         render {
             Embed {
                 Title("Rendered with Reakt")
-                Embed(spaced = true) {
-                    Body {
-                        this append p("This message was rendered with Reakt.")
-                        this append p("The button has been clicked ") + bold("$clicks times.")
-                    }
+                Body(spaced = true) {
+                    this append p("This message was rendered with Reakt.")
+                    this append p("The button has been clicked ") + bold("$clicks times.")
                 }
                 Color(java.awt.Color.YELLOW)
                 Timestamp(Instant.now())
@@ -56,11 +54,9 @@ val Reakt.Document.ClickEmbed = component {
     render {
         Embed {
             Title("Rendered with Reakt")
-            Embed(spaced = true) {
-                Body {
-                    this append p("This message was rendered with Reakt.")
-                    this append p("The button has been clicked ") + bold("$clicks times.")
-                }
+            Body(spaced = true) {
+                this append p("This message was rendered with Reakt.")
+                this append p("The button has been clicked ") + bold("$clicks times.")
             }
             Color(java.awt.Color.YELLOW)
             Timestamp(Instant.now())
