@@ -89,27 +89,37 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
     private val isDestroying = AtomicBoolean(false)
 
-    private var destroyJob = if (lifetime.isInfinite()) null else coroutine {
-        delay(lifetime.inWholeMilliseconds)
-        destroy()
-    }
+    private var destroyJob =
+        if (lifetime.isInfinite()) {
+            null
+        } else {
+            coroutine {
+                delay(lifetime.inWholeMilliseconds)
+                destroy()
+            }
+        }
 
     private var messageDeleteListenerManager: ListenerManager<MessageDeleteListener>? = null
     private var destroySubscribers = mutableListOf<DestroySubscription>()
 
     internal var componentSessions: MutableMap<Int, ComponentStore> = mutableMapOf()
+
     @Suppress("MemberVisibilityCanBePrivate", "unused")
     inner class ComponentStore {
         private var store = mutableMapOf<String, Writable<*>>()
         internal var hasChanged = false
 
         @Suppress("UNCHECKED_CAST")
-        fun <T> writable(key: String, value: T): Writable<T> {
+        fun <T> writable(
+            key: String,
+            value: T,
+        ): Writable<T> {
             detectInvalidWritableDeclaration()
-            val writable = store.computeIfAbsent(key) {
-                val element = Writable(value)
-                return@computeIfAbsent expand(element)
-            }
+            val writable =
+                store.computeIfAbsent(key) {
+                    val element = Writable(value)
+                    return@computeIfAbsent expand(element)
+                }
             writable.subscribe { _, _ -> hasChanged = true }
             return writable as Writable<T>
         }
@@ -121,11 +131,15 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * that doesn't recreate each time a re-render happen.
          */
         @Suppress("UNCHECKED_CAST")
-        fun <T> ref(key: String, defaultValue: T): Writable<T> {
+        fun <T> ref(
+            key: String,
+            defaultValue: T,
+        ): Writable<T> {
             detectInvalidWritableDeclaration()
-            val writable = store.computeIfAbsent(key) {
-                return@computeIfAbsent Writable(defaultValue)
-            }
+            val writable =
+                store.computeIfAbsent(key) {
+                    return@computeIfAbsent Writable(defaultValue)
+                }
             return writable as Writable<T>
         }
 
@@ -154,15 +168,19 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * if you are using a Log4j logger but with a SLF4J bridge as the default logging adapter uses SLF4J.
          */
         @Volatile var logger: LoggingAdapter =
-            if (LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) == null || LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) is NOPLogger) FastLoggingAdapter
-            else DefaultLoggingAdapter()
+            if (LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) == null || LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) is NOPLogger) {
+                FastLoggingAdapter
+            } else {
+                DefaultLoggingAdapter()
+            }
 
         /**
          * When in an automatic defer situation, the framework will automatically defer the response when the time has
          * surpassed the specified amount. You can specify this to any value less than 3,000 but the default value should
          * be more than enough even when considering network latencies.
          */
-        @JvmField @Volatile var autoDeferAfterMilliseconds: Long = 2350
+        @JvmField @Volatile
+        var autoDeferAfterMilliseconds: Long = 2350
 
         internal const val RESERVED_VALUE_KEY = "&[value\$]"
 
@@ -187,7 +205,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     internal enum class RenderMode {
         Interaction,
         Message,
-        UpdateMessage
+        UpdateMessage,
     }
 
     /**
@@ -249,21 +267,30 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         if (api.intents.contains(Intent.GUILD_MESSAGES) || api.intents.contains(Intent.DIRECT_MESSAGES)) {
             messageDeleteListenerManager?.remove()
-            messageDeleteListenerManager = this.resultingMessage?.run {
-                api.addMessageDeleteListener {
+            messageDeleteListenerManager =
+                this.resultingMessage?.run {
+                    api.addMessageDeleteListener {
+                        destroy()
+                    }
+                }
+        }
+        destroyJob =
+            if (lifetime.isInfinite()) {
+                null
+            } else {
+                coroutine {
+                    delay(lifetime.inWholeMilliseconds)
                     destroy()
                 }
             }
-        }
-        destroyJob = if (lifetime.isInfinite()) null else coroutine {
-            delay(lifetime.inWholeMilliseconds)
-            destroy()
-        }
         updateSubscribers.forEach {
             try {
                 it(message)
             } catch (err: Exception) {
-                logger.error("An uncaught exception was received by Reakt's update subscription dispatcher with the following stacktrace.", err)
+                logger.error(
+                    "An uncaught exception was received by Reakt's update subscription dispatcher with the following stacktrace.",
+                    err,
+                )
             }
         }
     }
@@ -373,7 +400,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
-    private fun flatten(document: Document, into: Document) {
+    private fun flatten(
+        document: Document,
+        into: Document,
+    ) {
         for (component in document.components) {
             if (!component.hasRenderedOnce) {
                 component.rerender()
@@ -394,7 +424,11 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 try {
                     it()
                 } catch (err: Exception) {
-                    logger.error("An uncaught exception was received by Reakt's initial render subscription dispatcher with the following stacktrace.", err)
+                    logger.error(
+                        "An uncaught exception was received by Reakt's initial render " +
+                            "subscription dispatcher with the following stacktrace.",
+                        err,
+                    )
                 }
             }
         }
@@ -403,7 +437,11 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             try {
                 it()
             } catch (err: Exception) {
-                logger.error("An uncaught exception was received by Reakt's render subscription dispatcher with the following stacktrace.", err)
+                logger.error(
+                    "An uncaught exception was received by Reakt's render subscription " +
+                        "dispatcher with the following stacktrace.",
+                    err,
+                )
             }
         }
 
@@ -474,16 +512,19 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         return element
     }
 
+    @Suppress("NOTHING_TO_INLINE")
     internal inline fun detectInvalidWritableDeclaration() {
-        val isInsideRenderMethod = StackWalker.getInstance().walk { stream ->
-            val frame = stream
-                .limit(6) // 6 frames is usually where we can determine where the render method is called
-                .dropWhile { !(it.methodName == "render" && it.className.startsWith("pw.mihou.reakt")) }
-                .findFirst()
-                .getOrNull()
+        val isInsideRenderMethod =
+            StackWalker.getInstance().walk { stream ->
+                val frame =
+                    stream
+                        .limit(6) // 6 frames is usually where we can determine where the render method is called
+                        .dropWhile { !(it.methodName == "render" && it.className.startsWith("pw.mihou.reakt")) }
+                        .findFirst()
+                        .getOrNull()
 
-            return@walk frame != null
-        }
+                return@walk frame != null
+            }
         if (isInsideRenderMethod) {
             throw ReaktStateInsideRenderMethodException
         }
@@ -543,25 +584,27 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      * @return the [Writable] with the re-render subscription attached.
      */
     fun <T> expand(writable: Writable<T>): Writable<T> {
-        val stateUnsubscribe = writable.subscribe { _, _ ->
-            try {
-                if (!mutex.tryLock()) return@subscribe
-                val render = this.render ?: return@subscribe
-                debounceTask?.cancel()
-                debounceTask = coroutine {
-                    delay(debounceMillis)
-                    debounceTask = null
+        val stateUnsubscribe =
+            writable.subscribe { _, _ ->
+                try {
+                    if (!mutex.tryLock()) return@subscribe
+                    val render = this.render ?: return@subscribe
+                    debounceTask?.cancel()
+                    debounceTask =
+                        coroutine {
+                            delay(debounceMillis)
+                            debounceTask = null
 
-                    if (this.document == null) return@coroutine
-                    rerender(render)
+                            if (this.document == null) return@coroutine
+                            rerender(render)
 
-                    destroyJob?.cancel()
+                            destroyJob?.cancel()
+                        }
+                    mutex.unlock()
+                } catch (err: Exception) {
+                    logger.error("Failed to re-render message using Reakt with the following stacktrace.", err)
                 }
-                mutex.unlock()
-            } catch (err: Exception) {
-                logger.error("Failed to re-render message using Reakt with the following stacktrace.", err)
             }
-        }
         expansions.add(stateUnsubscribe)
         return writable
     }
@@ -579,7 +622,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      * @param modifier the action to do to mutate the value into the desired value.
      * @return a new [ReadOnly] state that is derived from the current [Writable].
      */
-    fun <T, K> derive(writable: Writable<T>, modifier: Derive<T, K>) = writable.derive(modifier).apply {
+    fun <T, K> derive(
+        writable: Writable<T>,
+        modifier: Derive<T, K>,
+    ) = writable.derive(modifier).apply {
         expand(this.writable)
     }
 
@@ -601,28 +647,30 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 process()
             }
 
-            internal fun process() = coroutine {
-                val locked = lock.tryLock()
-                if (!locked) return@coroutine
-                while(queue.isNotEmpty()) {
-                    val element = queue.poll()
-                    if (element != null) {
-                        // synchronous wait
-                        for (endpoint in endpoints) {
-                            endpoint(element)
+            internal fun process() =
+                coroutine {
+                    val locked = lock.tryLock()
+                    if (!locked) return@coroutine
+                    while (queue.isNotEmpty()) {
+                        val element = queue.poll()
+                        if (element != null) {
+                            // synchronous wait
+                            for (endpoint in endpoints) {
+                                endpoint(element)
+                            }
                         }
                     }
+
+                    lock.unlock()
                 }
 
-                lock.unlock()
-            }
-
-            internal fun close() = coroutine {
-                endpoints.clear()
-            }
+            internal fun close() =
+                coroutine {
+                    endpoints.clear()
+                }
         }
 
-        private fun lever(key: Any) =  levers.computeIfAbsent(key) { Lever() }
+        private fun lever(key: Any) = levers.computeIfAbsent(key) { Lever() }
 
         /**
          * [send] enqueues an element update to a specific [key] queue. Each [key] queue
@@ -632,7 +680,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * @param key the name of the queue task.
          * @param element the element to enqueue.
          */
-        fun send(key: Any, element: T) {
+        fun send(
+            key: Any,
+            element: T,
+        ) {
             lever(key).send(element)
         }
 
@@ -646,7 +697,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         fun close(key: Any) {
             levers[key]?.let {
                 it.process() // locks first to process remaining entities (if not already running)
-                it.close()   // locks second to remove all endpoints
+                it.close() // locks second to remove all endpoints
             }
             levers.remove(key)
         }
@@ -660,7 +711,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * @param key the name of the queue task.
          * @param endpoint the endpoint to subscribe.
          */
-        fun listen(key: Any, endpoint: Endpoint<T>): Unsubscribe {
+        fun listen(
+            key: Any,
+            endpoint: Endpoint<T>,
+        ): Unsubscribe {
             lever(key).endpoints.add(endpoint)
             return {
                 levers[key]?.endpoints?.remove(endpoint)
@@ -680,12 +734,16 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * @param key the name of the queue task.
          * @param endpoint the endpoint to subscribe.
          */
-        fun once(key: Any, endpoint: Endpoint<T>) {
+        fun once(
+            key: Any,
+            endpoint: Endpoint<T>,
+        ) {
             var unsubscribe: Unsubscribe? = null
-            unsubscribe = listen(key) {
-                endpoint(it)
-                unsubscribe?.invoke()
-            }
+            unsubscribe =
+                listen(key) {
+                    endpoint(it)
+                    unsubscribe?.invoke()
+                }
         }
     }
 
@@ -696,13 +754,17 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      */
     class ReadOnly<T> internal constructor(value: T) {
         internal val writable = Writable(value)
+
         internal fun set(value: T) = writable.set(value)
 
         /**
          * Gets the value of this [Writable]. This is intended to be used for delegation. You may be looking for
          * [get] instead which allows you to directly get the value.
          */
-        operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
+        operator fun getValue(
+            thisRef: Any?,
+            property: KProperty<*>,
+        ): T {
             return writable.get()
         }
 
@@ -722,6 +784,13 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * @return an [Unsubscribe] method to unsubscribe the [Subscription].
          */
         infix fun subscribe(subscription: Subscription<T>): Unsubscribe = writable.subscribe(subscription)
+
+        /**
+         * An internal method to get the hash code of the current value, intended to optimize memory usage
+         * in components by not creating another unnecessary copy, or reference to the value.
+         * @return the hash code of the current value.
+         */
+        internal fun hashCodeOfValue() = writable.hashCodeOfValue()
     }
 
     /**
@@ -737,13 +806,18 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
      */
     class Writable<T>(value: T) {
         private val subscribers: MutableList<Subscription<T>> = mutableListOf()
+
+        @Suppress("ktlint:standard:backing-property-naming")
         private val _value: AtomicReference<T> = AtomicReference(value)
 
         /**
          * Gets the value of this [Writable]. This is intended to be used for delegation. You may be looking for
          * [get] instead which allows you to directly get the value.
          */
-        operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
+        operator fun getValue(
+            thisRef: Any?,
+            property: KProperty<*>,
+        ): T {
             return _value.get()
         }
 
@@ -751,7 +825,11 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * Sets the value of this [Writable]. This is intended to be used for delegation. You may be looking for
          * [set] or [update] instead which allows you to manipulate the [Writable]'s value.
          */
-        operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
+        operator fun setValue(
+            thisRef: Any?,
+            property: KProperty<*>,
+            value: T,
+        ) {
             set(value)
         }
 
@@ -815,13 +893,19 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * @param oldValue the old value.
          * @param value the current value.
          */
-        internal fun react(oldValue: T, value: T) {
+        internal fun react(
+            oldValue: T,
+            value: T,
+        ) {
             subscribers.forEach {
                 coroutine {
                     try {
                         it(oldValue, value)
                     } catch (err: Exception) {
-                        logger.error("An uncaught exception was received by Reakt's writable subscriptions with the following stacktrace.", err)
+                        logger.error(
+                            "An uncaught exception was received by Reakt's writable subscriptions with the following stacktrace.",
+                            err,
+                        )
                     }
                 }
             }
@@ -857,11 +941,18 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             if (other == null) return false
             return value == other
         }
+
+        /**
+         * An internal method to get the hash code of the current value, intended to optimize memory usage
+         * in components by not creating another unnecessary copy, or reference to the value.
+         * @return the hash code of the current value.
+         */
+        internal fun hashCodeOfValue() = _value.get().hashCode()
     }
 
     inner class Component internal constructor(
         private val qualifiedName: String,
-        private val constructor: ComponentConstructor
+        private val constructor: ComponentConstructor,
     ) {
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
@@ -885,6 +976,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
         private val hashCode get(): Int {
             var result = 1
+
             fun inc(vararg elements: Any?) {
                 for (element in elements) {
                     result = 31 * result + (element?.hashCode() ?: 0)
@@ -1007,22 +1099,30 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         operator fun invoke(vararg props: Pair<String, Any?>) {
             synchronized(this) {
                 val statefulProps = mutableListOf<Pair<String, Any?>>()
-                val mutableProps = props.associate {
-                    if (it.first.endsWith(RESERVED_VALUE_KEY))
-                        throw IllegalArgumentException("$qualifiedName component has an illegal prop passed '${it.first}'.")
+                val mutableProps =
+                    props.associate {
+                        if (it.first.endsWith(RESERVED_VALUE_KEY)) {
+                            throw IllegalArgumentException("$qualifiedName component has an illegal prop passed '${it.first}'.")
+                        }
 
-                    val value = it.second
-                    if (value != null && value is Writable<*> || value is ReadOnly<*>) {
-                        statefulProps.add(it.first.lowercase() + RESERVED_VALUE_KEY to when(value) {
-                            is Writable<*> -> value.get()
-                            is ReadOnly<*> -> value.get()
-                            else -> value
-                        })
-                    }
-                    return@associate it.first.lowercase() to value
-                }.toMutableMap()
+                        val value = it.second
+                        if (value != null && value is Writable<*> || value is ReadOnly<*>) {
+                            statefulProps.add(
+                                it.first.lowercase() + RESERVED_VALUE_KEY to
+                                    when (value) {
+                                        is Writable<*> -> value.hashCodeOfValue()
+                                        is ReadOnly<*> -> value.hashCodeOfValue()
+                                        else -> throw IllegalArgumentException(
+                                            "Attempting to reserve value for non-stateful " +
+                                                "prop ${it.first} with type of ${value::class.qualifiedName}.",
+                                        )
+                                    },
+                            )
+                        }
+                        return@associate it.first.lowercase() to value
+                    }.toMutableMap()
 
-                if (statefulProps.isNotEmpty())  {
+                if (statefulProps.isNotEmpty()) {
                     // for comparisons, we need to have the initial prop value for the writable/readonly
                     // to determine if the prop changed.
                     mutableProps += statefulProps
@@ -1054,15 +1154,18 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     val newValue = component.props[key]
                     if (newValue != null && value != null) {
                         if (newValue::class.java != value::class.java) return false
-                        when(value) {
+                        when (value) {
                             is Writable<*>, is ReadOnly<*> -> {
-                                if (!component.props.containsKey("$key$RESERVED_VALUE_KEY"))
-                                    throw IllegalStateException("Reakt component '$qualifiedName' has ${value::class.java.name} but without the " +
-                                            "corresponding comparison prop. This shouldn't happen.")
+                                if (!component.props.containsKey("$key$RESERVED_VALUE_KEY")) {
+                                    throw IllegalStateException(
+                                        "Reakt component '$qualifiedName' has ${value::class.java.name} but without the " +
+                                            "corresponding comparison prop. This shouldn't happen.",
+                                    )
+                                }
 
-                                val initialValue = component.props["$key$RESERVED_VALUE_KEY"]
-                                val comparisonValue = this.props["$key$RESERVED_VALUE_KEY"]
-                                if (initialValue != comparisonValue) return false
+                                val initialValueHashCode = component.props["$key$RESERVED_VALUE_KEY"] as? Int
+                                val comparisonValueHashCode = this.props["$key$RESERVED_VALUE_KEY"] as? Int
+                                if (initialValueHashCode != comparisonValueHashCode) return false
                             }
                         }
                     }
@@ -1085,7 +1188,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         fun render(view: View) {
             val embed = embed
-            val component =  component
+            val component = component
             val listener = listener
             val uuid = uuid
             val textContent = textContent
@@ -1127,7 +1230,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             return components.toList()
         }
 
-        fun component(qualifiedName: String, constructor: Component.() -> Unit): Component {
+        fun component(
+            qualifiedName: String,
+            constructor: Component.() -> Unit,
+        ): Component {
             val component = Component(qualifiedName, constructor)
             components += component
             return component
@@ -1189,21 +1295,25 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
 
         fun render(api: DiscordApi): Pair<Unsubscribe, ReaktMessage> {
-            return attachListeners(api) to ReaktMessage.with {
-                this.removeAllEmbeds()
-                this.addEmbeds(embeds)
+            return attachListeners(api) to
+                ReaktMessage.with {
+                    this.removeAllEmbeds()
+                    this.addEmbeds(embeds)
 
-                if (contents != null) {
-                    this.setContent(contents)
+                    if (contents != null) {
+                        this.setContent(contents)
+                    }
+
+                    chunkComponents().forEach(this::addComponents)
                 }
-
-                chunkComponents().forEach(this::addComponents)
-            }
         }
 
         // TODO: Reduce code duplication by using MessageBuilderBase (currently package-private)
         //       https://discord.com/channels/151037561152733184/151326093482262528/1163425854186065951
-        fun render(updater: MessageUpdater, api: DiscordApi): Unsubscribe {
+        fun render(
+            updater: MessageUpdater,
+            api: DiscordApi,
+        ): Unsubscribe {
             updater.apply {
                 this.removeAllEmbeds()
                 this.addEmbeds(embeds)
@@ -1216,7 +1326,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             return attachListeners(api)
         }
 
-        fun render(builder: MessageBuilder, api: DiscordApi): Unsubscribe {
+        fun render(
+            builder: MessageBuilder,
+            api: DiscordApi,
+        ): Unsubscribe {
             builder.apply {
                 this.removeAllEmbeds()
                 this.addEmbeds(embeds)
@@ -1229,8 +1342,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             return attachListeners(api)
         }
 
-
-        fun render(updater: InteractionOriginalResponseUpdater, api: DiscordApi): Unsubscribe{
+        fun render(
+            updater: InteractionOriginalResponseUpdater,
+            api: DiscordApi,
+        ): Unsubscribe {
             updater.apply {
                 this.removeAllEmbeds()
                 this.removeAllComponents()
