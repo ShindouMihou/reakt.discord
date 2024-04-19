@@ -562,7 +562,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
             this.unsubscribe()
             this.unsubscribe = view.render(interactionUpdater, api)
-            interactionUpdater.update().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
+            interactionUpdater.update()
+                .exceptionally(::suggestions)
+                .thenAccept(::acknowledgeUpdate)
         } else {
             val message = resultingMessage
             if (message != null) {
@@ -571,7 +573,9 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
                 this.unsubscribe()
                 this.unsubscribe = view.render(updater, api)
-                updater.replaceMessage().exceptionally(::suggestions).thenAccept(::acknowledgeUpdate)
+                updater.replaceMessage()
+                    .exceptionally(::suggestions)
+                    .thenAccept(::acknowledgeUpdate)
             }
         }
     }
@@ -650,17 +654,19 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 coroutine {
                     val locked = lock.tryLock()
                     if (!locked) return@coroutine
-                    while (queue.isNotEmpty()) {
-                        val element = queue.poll()
-                        if (element != null) {
-                            // synchronous wait
-                            for (endpoint in endpoints) {
-                                endpoint(element)
+                    try {
+                        while (queue.isNotEmpty()) {
+                            val element = queue.poll()
+                            if (element != null) {
+                                // synchronous wait
+                                for (endpoint in endpoints) {
+                                    endpoint(element)
+                                }
                             }
                         }
+                    } finally {
+                        lock.unlock()
                     }
-
-                    lock.unlock()
                 }
 
             internal fun close() =
