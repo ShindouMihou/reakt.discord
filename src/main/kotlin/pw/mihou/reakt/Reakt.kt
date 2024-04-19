@@ -479,22 +479,23 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
 
             lateinit var document: Document
-            if (equivalence == null) {
-                if (!component.hasRenderedOnce) {
-                    component.rerender()
+            try {
+                if (equivalence == null) {
+                    if (!component.hasRenderedOnce) {
+                        component.rerender()
+                    }
+                } else {
+                    if (equivalence.session.hasChanged) {
+                        equivalence.session.hasChanged = false
+                        equivalence.rerender()
+                    }
+                    // ensure that we swap the document inside the component
+                    // so that the next rerender will utilize this new document.
+                    component.document = equivalence.document
                 }
-
+            } finally {
                 document = component.document
                 renderedComponents += component
-            } else {
-                if (equivalence.session.hasChanged) {
-                    equivalence.session.hasChanged = false
-                    equivalence.rerender()
-                }
-                // ensure that we swap the document inside the component
-                // so that the next rerender will utilize this new document.
-                component.document = equivalence.document
-                document = component.document
             }
 
             composition.components += component
