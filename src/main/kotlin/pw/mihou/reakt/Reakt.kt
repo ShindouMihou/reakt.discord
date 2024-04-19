@@ -416,34 +416,32 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         }
     }
 
+    private fun executeRenderSubscription(
+        isFirstRender: Boolean,
+        subscription: RenderSubscription,
+    ) {
+        try {
+            subscription()
+        } catch (err: Exception) {
+            logger.error(
+                "An uncaught exception was received by Reakt's ${if (isFirstRender) "initial" else ""} render " +
+                    "subscription dispatcher with the following stacktrace.",
+                err,
+            )
+        }
+    }
+
+    private fun runInitialRenderSubscription(subscription: RenderSubscription) = executeRenderSubscription(true, subscription)
+
+    private fun runRenderSubscription(subscription: RenderSubscription) = executeRenderSubscription(false, subscription)
+
     private fun apply(renderer: ReactDocument): View {
         this.render = renderer
 
         if (!rendered) {
-            firstRenderSubscribers.forEach {
-                try {
-                    it()
-                } catch (err: Exception) {
-                    logger.error(
-                        "An uncaught exception was received by Reakt's initial render " +
-                            "subscription dispatcher with the following stacktrace.",
-                        err,
-                    )
-                }
-            }
+            firstRenderSubscribers.forEach(::runInitialRenderSubscription)
         }
-
-        renderSubscribers.forEach {
-            try {
-                it()
-            } catch (err: Exception) {
-                logger.error(
-                    "An uncaught exception was received by Reakt's render subscription " +
-                        "dispatcher with the following stacktrace.",
-                    err,
-                )
-            }
-        }
+        renderSubscribers.forEach(::runRenderSubscription)
 
         val oldDocument = this.document ?: Document()
         val oldComponents = oldDocument.copyComponents()
