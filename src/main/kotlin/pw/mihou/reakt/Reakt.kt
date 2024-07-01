@@ -18,6 +18,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.slf4j.helpers.NOPLogger
 import pw.mihou.reakt.channels.Endpoint
+import pw.mihou.reakt.components.ProviderProperties
 import pw.mihou.reakt.deferrable.ReaktMessage
 import pw.mihou.reakt.exceptions.*
 import pw.mihou.reakt.logger.LoggingAdapter
@@ -110,10 +111,41 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal var hasChanged = false
 
         @Suppress("UNCHECKED_CAST")
+        internal fun <T> lookup(key: String): Writable<T>? =
+            (store[key] as? Writable<T>)
+
+        @Suppress("UNCHECKED_CAST")
+        internal fun <T> nativeRef(
+            key: String,
+            defaultValue: T,
+        ): Writable<T> {
+            val writable =
+                store.computeIfAbsent("<native>.$key") {
+                    return@computeIfAbsent Writable(defaultValue)
+                }
+            return writable as Writable<T>
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        internal fun <T> nativeWritable(
+            key: String,
+            value: T,
+        ): Writable<T> {
+            val writable =
+                store.computeIfAbsent("<native>.$key") {
+                    val element = Writable(value)
+                    return@computeIfAbsent expand(element)
+                }
+            writable.subscribe { _, _ -> hasChanged = true }
+            return writable as Writable<T>
+        }
+
+        @Suppress("UNCHECKED_CAST")
         fun <T> writable(
             key: String,
             value: T,
         ): Writable<T> {
+            detectInvalidName(key)
             detectInvalidWritableDeclaration()
             val writable =
                 store.computeIfAbsent(key) {
@@ -135,6 +167,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             key: String,
             defaultValue: T,
         ): Writable<T> {
+            detectInvalidName(key)
             detectInvalidWritableDeclaration()
             val writable =
                 store.computeIfAbsent(key) {
@@ -183,6 +216,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         var autoDeferAfterMilliseconds: Long = 2350
 
         internal const val RESERVED_VALUE_KEY = "&[value\$]"
+        internal const val RESERVED_NATIVE_KEY = "<native>"
+
 
         /**
          * Logs an [exception] paired with a suggestion when the [exception] is caused by a misuse of the
@@ -467,7 +502,40 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         // @note list of components that were re-rendered, so we can reference it when there are duplicates.
         val renderedComponents = mutableListOf<Component>()
 
+        val providers = mutableMapOf<Int, ProviderProperties>()
         for (component in newComponents) {
+            if (component.qualifiedName == "pw.mihou.reakt.<native>.components.Provider") {
+                val hash = component.hashCode
+                providers[hash] = ProviderProperties(
+                    hash,
+                    component.props.filterKeys { !it.contains(RESERVED_VALUE_KEY) },
+                    component.session.lookup("<native>.rendering")!!
+                )
+            } else {
+                if (providers.isNotEmpty()) {
+                    var hasComponentPropsBeenChanged = false
+                    for ((_, provider) in providers) {
+                        if (!provider.rendering.get()) {
+                            providers.remove(provider.hash)
+                            continue
+                        }
+
+                        hasComponentPropsBeenChanged = true
+                        component.props += provider.props
+                    }
+
+                    if (hasComponentPropsBeenChanged) {
+                        // Inject the providers' props into the component.
+                        component.invoke(
+                            *component.props
+                                .filterKeys { !it.contains(RESERVED_VALUE_KEY) }
+                                .toList()
+                                .toTypedArray()
+                        )
+                    }
+                }
+            }
+
             var equivalence: Component? = null
             for (component1 in renderedComponents) {
                 val equivalent = component.compare(component1)
@@ -539,6 +607,13 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
         if (isInsideRenderMethod) {
             throw ReaktStateInsideRenderMethodException
+        }
+    }
+
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun detectInvalidName(key: String) {
+        if (key.contains(RESERVED_NATIVE_KEY)) {
+            throw ReaktNativeReservedKeywordException
         }
     }
 
@@ -969,9 +1044,12 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     inner class Component internal constructor(
-        private val qualifiedName: String,
+        val qualifiedName: String,
         private val constructor: ComponentConstructor,
     ) {
+        init {
+            detectInvalidName(qualifiedName)
+        }
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
 
@@ -979,7 +1057,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             private set
 
         internal var props: Props = mapOf()
-            private set
 
         internal var document = Document()
 
@@ -992,7 +1069,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 ComponentStore()
             }
         }
-        private val hashCode get(): Int {
+        internal val hashCode get(): Int {
             var result = 1
 
             fun inc(vararg elements: Any?) {

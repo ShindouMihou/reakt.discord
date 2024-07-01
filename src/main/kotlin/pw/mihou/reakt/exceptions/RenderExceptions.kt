@@ -26,3 +26,13 @@ object ReaktStateInsideRenderMethodException:  ReaktRuleEnforcementException(
 ) {
     private fun readResolve(): Any = ReaktStateInsideRenderMethodException
 }
+
+object ReaktNativeReservedKeywordException: ReaktRuleEnforcementException(
+    code = 931,
+    message = "You cannot create a component, or assign a session prop that contains the '<native>' word. " +
+            "As it is reserved for native components, or natively injected props of Reakt that can access internal " +
+            "functions, or properties. To resolve this issue, remove the '<native>' word from your component's name, " +
+            "or session prop's key."
+) {
+    private fun readResolve(): Any = ReaktNativeReservedKeywordException
+}
