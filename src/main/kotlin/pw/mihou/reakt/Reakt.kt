@@ -1047,9 +1047,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         val qualifiedName: String,
         private val constructor: ComponentConstructor,
     ) {
-        init {
-            detectInvalidName(qualifiedName)
-        }
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
 
