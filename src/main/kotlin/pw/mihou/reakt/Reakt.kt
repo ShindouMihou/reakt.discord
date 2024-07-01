@@ -482,6 +482,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     if (!component.hasRenderedOnce) {
                         component.rerender()
                     }
+
+                    renderedComponents += component
                 } else {
                     if (equivalence.session.hasChanged) {
                         equivalence.session.hasChanged = false
@@ -493,7 +495,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 }
             } finally {
                 document = component.document
-                renderedComponents += component
             }
 
             composition.components += component
