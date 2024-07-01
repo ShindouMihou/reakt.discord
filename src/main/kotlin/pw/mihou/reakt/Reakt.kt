@@ -327,6 +327,18 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
     }
 
     /**
+     * Delete, not be confused by [destroy], will delete the message that was produced by this
+     * instance and sets the [Reakt] instance as destroyed. This will perform the same tasks as
+     * [destroy], but will reset [renderOnDestroy] since there is nothing for the user to see.
+     */
+    fun delete() {
+        renderOnDestroy = null
+        destroy()
+
+        resultingMessage?.delete()
+    }
+
+    /**
      * Destroys any references to this [Reakt] instance. It is recommended to do this when
      * you no longer need the interactivity as this will free up a ton of unused memory that should've
      * been free.
