@@ -146,7 +146,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             value: T,
         ): Writable<T> {
             detectInvalidName(key)
-            detectInvalidWritableDeclaration()
             val writable =
                 store.computeIfAbsent(key) {
                     val element = Writable(value)
@@ -168,7 +167,6 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             defaultValue: T,
         ): Writable<T> {
             detectInvalidName(key)
-            detectInvalidWritableDeclaration()
             val writable =
                 store.computeIfAbsent(key) {
                     return@computeIfAbsent Writable(defaultValue)
