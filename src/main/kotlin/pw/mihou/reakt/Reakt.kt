@@ -506,6 +506,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         val providers = mutableMapOf<Int, ProviderProperties>()
         for (component in newComponents) {
+            var willPropInjectNext = false
             if (component.qualifiedName == "pw.mihou.reakt.<native>.components.Provider") {
                 val hash = component.hashCode
                 providers[hash] = ProviderProperties(
@@ -513,7 +514,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     component.props.filterKeys { !it.contains(RESERVED_VALUE_KEY) },
                     component.session.lookup("<native>.rendering")!!
                 )
-                isPropInjecting = true
+                willPropInjectNext = true
             } else {
                 if (providers.isNotEmpty()) {
                     var hasComponentPropsBeenChanged = false
@@ -566,6 +567,10 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                         break
                     }
                 }
+            }
+
+            if (willPropInjectNext) {
+                isPropInjecting = true
             }
 
             lateinit var document: Document
@@ -1184,6 +1189,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
         internal fun rerender() {
             synchronized(this) {
+                if (isPropInjecting) return
                 document = Document()
                 val render = render ?: throw NoRenderFoundException(qualifiedName)
 
