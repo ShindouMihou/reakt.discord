@@ -482,6 +482,8 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
 
     private fun runRenderSubscription(subscription: RenderSubscription) = executeRenderSubscription(false, subscription)
 
+    internal var isPropInjecting = false
+
     private fun apply(renderer: ReactDocument): View {
         this.render = renderer
 
@@ -511,6 +513,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     component.props.filterKeys { !it.contains(RESERVED_VALUE_KEY) },
                     component.session.lookup("<native>.rendering")!!
                 )
+                isPropInjecting = true
             } else {
                 if (providers.isNotEmpty()) {
                     var hasComponentPropsBeenChanged = false
@@ -525,13 +528,22 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                     }
 
                     if (hasComponentPropsBeenChanged) {
-                        // Inject the providers' props into the component.
-                        component.invoke(
-                            *component.props
-                                .filterKeys { !it.contains(RESERVED_VALUE_KEY) }
-                                .toList()
-                                .toTypedArray()
-                        )
+                        isPropInjecting = false
+                        try {
+                            // Inject the providers' props into the component.
+                            component.invoke(
+                                *component.props
+                                    .filterKeys { !it.contains(RESERVED_VALUE_KEY) }
+                                    .toList()
+                                    .toTypedArray()
+                            )
+                        } finally {
+                            isPropInjecting = true
+                        }
+                    }
+
+                    if (providers.isEmpty()) {
+                        isPropInjecting = false
                     }
                 }
             }
@@ -1221,7 +1233,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 }
 
                 this.props = mutableProps
-                if (!constructed) {
+                if (!constructed && !isPropInjecting) {
                     constructor(this)
                 }
             }
