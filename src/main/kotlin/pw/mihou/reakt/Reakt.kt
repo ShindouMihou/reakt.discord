@@ -972,7 +972,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         private val qualifiedName: String,
         private val constructor: ComponentConstructor,
     ) {
-        inner class Prop<T>(private val clazz: Class<T>) {
+        inner class Prop<T>(private val clazz: Class<T>, private val ensure: Boolean) {
             private var name: String? = null
             private var value: T? = null
             operator fun getValue(
@@ -983,7 +983,13 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
                 val value = props[name ?: run {
                     name = property.name.lowercase()
                     return@run name
-                }] ?: return null
+                }] ?: run {
+                    if (ensure) {
+                        throw UnknownPropException(name!!)
+                    }
+
+                    return@run null
+                } ?: return null
                 if (value::class.java != clazz && !value::class.java.isAssignableFrom(clazz)) {
                     throw PropTypeMismatch(name!!, clazz, value::class.java)
                 }
@@ -1070,8 +1076,22 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          *
          * @return a delegatable [Prop] instance that will get the value of the prop with the same name
          * as the assigned property.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
          */
-        inline fun <reified T> prop(): Prop<T> = Prop(T::class.java)
+        inline fun <reified T> prop(): Prop<T> = Prop(T::class.java, false)
+
+        /**
+         * Gets the [prop] by using delegated properties, enabling retrieval through the name of the property
+         * instead of typing the property name over and over again. This ensures that the prop exists, otherwise
+         * throws an [UnknownPropException].
+         *
+         * @return a delegatable [Prop] instance that will get the value of the prop with the same name
+         * as the assigned property.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
+         */
+        inline fun <reified T> ensureProp(): Prop<T> = Prop(T::class.java, true)
 
         /**
          * [prop] gets the [prop] with the [name] as [T] type. If there are no props with the name, and with the
