@@ -968,46 +968,47 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         internal fun hashCodeOfValue() = _value.get().hashCode()
     }
 
+    class Prop<T>(private val component: Reakt.Component, private val clazz: Class<T>, private val ensure: Boolean) {
+        private var name: String? = null
+        private var value: T? = null
+        operator fun getValue(
+            thisRef: Any?,
+            property: KProperty<*>,
+        ): T? {
+            if (value != null) return value
+            val value = component.props[name ?: run {
+                name = property.name.lowercase()
+                return@run name
+            }] ?: run {
+                if (ensure) {
+                    throw UnknownPropException(name!!)
+                }
+
+                return@run null
+            } ?: return null
+            if (value::class.java != clazz && !value::class.java.isAssignableFrom(clazz)) {
+                throw PropTypeMismatch(name!!, clazz, value::class.java)
+            }
+            @Suppress("UNCHECKED_CAST")
+            this.value = value as T
+            return this.value
+        }
+    }
+
+    class EnsuredProp<T>(component: Reakt.Component, clazz: Class<T>) {
+        private val prop = Prop(component, clazz, true)
+        operator fun getValue(
+            thisRef: Any?,
+            property: KProperty<*>,
+        ): T {
+            return prop.getValue(this, property)!!
+        }
+    }
+
     inner class Component internal constructor(
         private val qualifiedName: String,
         private val constructor: ComponentConstructor,
     ) {
-        inner class Prop<T>(private val clazz: Class<T>, private val ensure: Boolean) {
-            private var name: String? = null
-            private var value: T? = null
-            operator fun getValue(
-                thisRef: Any?,
-                property: KProperty<*>,
-            ): T? {
-                if (value != null) return value
-                val value = props[name ?: run {
-                    name = property.name.lowercase()
-                    return@run name
-                }] ?: run {
-                    if (ensure) {
-                        throw UnknownPropException(name!!)
-                    }
-
-                    return@run null
-                } ?: return null
-                if (value::class.java != clazz && !value::class.java.isAssignableFrom(clazz)) {
-                    throw PropTypeMismatch(name!!, clazz, value::class.java)
-                }
-                @Suppress("UNCHECKED_CAST")
-                this.value = value as T
-                return this.value
-            }
-        }
-
-        inner class EnsuredProp<T>(clazz: Class<T>) {
-            private val prop = Prop(clazz, true)
-            operator fun getValue(
-                thisRef: Any?,
-                property: KProperty<*>,
-            ): T {
-                return prop.getValue(this, property)!!
-            }
-        }
 
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
@@ -1089,7 +1090,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
          * @throws UnknownPropException when there is no prop received with the name.
          */
-        inline fun <reified T> prop(): Prop<T> = Prop(T::class.java, false)
+        inline fun <reified T> prop(): Prop<T> = Prop(this, T::class.java, false)
 
         /**
          * Gets the [prop] by using delegated properties, enabling retrieval through the name of the property
@@ -1101,7 +1102,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
          * @throws UnknownPropException when there is no prop received with the name.
          */
-        inline fun <reified T> ensureProp(): EnsuredProp<T> = EnsuredProp(T::class.java)
+        inline fun <reified T> ensureProp(): EnsuredProp<T> = EnsuredProp(this, T::class.java)
 
         /**
          * [prop] gets the [prop] with the [name] as [T] type. If there are no props with the name, and with the
