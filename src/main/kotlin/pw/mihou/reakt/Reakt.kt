@@ -972,6 +972,27 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         private val qualifiedName: String,
         private val constructor: ComponentConstructor,
     ) {
+        inner class Prop<T>(private val clazz: Class<T>) {
+            private var name: String? = null
+            private var value: T? = null
+            operator fun getValue(
+                thisRef: Any?,
+                property: KProperty<*>,
+            ): Any? {
+                if (value != null) return value
+                val value = props[name ?: run {
+                    name = property.name.lowercase()
+                    return@run name
+                }] ?: return null
+                if (value::class.java != clazz && !value::class.java.isAssignableFrom(clazz)) {
+                    throw PropTypeMismatch(name!!, clazz, value::class.java)
+                }
+                @Suppress("UNCHECKED_CAST")
+                this.value = value as T
+                return this.value
+            }
+        }
+
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
 
@@ -1042,6 +1063,15 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * @return the prop's value.
          */
         fun anyProp(name: String): Any? = props[name.lowercase()]
+
+        /**
+         * Gets the [prop] by using delegated properties, enabling retrieval through the name of the property
+         * instead of typing the property name over and over again.
+         *
+         * @return a delegatable [Prop] instance that will get the value of the prop with the same name
+         * as the assigned property.
+         */
+        inline fun <reified T> prop(): Prop<T> = Prop(T::class.java)
 
         /**
          * [prop] gets the [prop] with the [name] as [T] type. If there are no props with the name, and with the
