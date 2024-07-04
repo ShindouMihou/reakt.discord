@@ -3,6 +3,7 @@ package pw.mihou.reakt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import org.javacord.api.DiscordApi
+import org.javacord.api.entity.DiscordEntity
 import org.javacord.api.entity.intent.Intent
 import org.javacord.api.entity.message.Message
 import org.javacord.api.entity.message.MessageBuilder
@@ -10,6 +11,7 @@ import org.javacord.api.entity.message.MessageUpdater
 import org.javacord.api.entity.message.component.ActionRow
 import org.javacord.api.entity.message.component.LowLevelComponent
 import org.javacord.api.entity.message.embed.EmbedBuilder
+import org.javacord.api.entity.user.User
 import org.javacord.api.interaction.callback.InteractionOriginalResponseUpdater
 import org.javacord.api.listener.GloballyAttachableListener
 import org.javacord.api.listener.message.MessageDeleteListener
@@ -61,7 +63,11 @@ typealias SuspendingReaktConstructor = suspend Reakt.() -> Unit
  * `event.R` method instead as it is mostly designed to enable this to work for your situation, or instead use the
  * available `interaction.R` method for interactions.
  */
-class Reakt internal constructor(private val api: DiscordApi, private val renderMode: RenderMode, private val lifetime: Duration = 1.days) {
+class Reakt internal constructor(
+    private val api: DiscordApi,
+    private val renderMode: RenderMode,
+    private val lifetime: Duration = 1.days
+) {
     private var rendered: Boolean = false
 
     internal var message: ReaktMessage? = null
@@ -147,6 +153,11 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         fun dealloc(key: String) {
             store.remove(key)
         }
+
+        /**
+         * Gets the [Reakt] instance that the [Reakt.Component] was created.
+         */
+        val reakt get() = this@Reakt
     }
 
     companion object {
