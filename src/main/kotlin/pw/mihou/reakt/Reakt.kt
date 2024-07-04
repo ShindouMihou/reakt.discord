@@ -999,6 +999,16 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             }
         }
 
+        inner class EnsuredProp<T>(clazz: Class<T>) {
+            private val prop = Prop(clazz, true)
+            operator fun getValue(
+                thisRef: Any?,
+                property: KProperty<*>,
+            ): T {
+                return prop.getValue(this, property)!!
+            }
+        }
+
         private var beforeMountListeners = mutableListOf<ComponentBeforeMountSubscription>()
         private var afterMountListeners = mutableListOf<ComponentAfterMountSubscription>()
 
@@ -1091,7 +1101,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
          * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
          * @throws UnknownPropException when there is no prop received with the name.
          */
-        inline fun <reified T> ensureProp(): Prop<T> = Prop(T::class.java, true)
+        inline fun <reified T> ensureProp(): EnsuredProp<T> = EnsuredProp(T::class.java)
 
         /**
          * [prop] gets the [prop] with the [name] as [T] type. If there are no props with the name, and with the
