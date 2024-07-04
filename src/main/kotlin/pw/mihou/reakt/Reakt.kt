@@ -1105,6 +1105,28 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
         inline fun <reified T> ensureProp(): EnsuredProp<T> = EnsuredProp(this, T::class.java)
 
         /**
+         * Gets the [writableProp] by using delegated properties, enabling retrieval through the name of the property
+         * instead of typing the property name over and over again. This ensures that the prop exists, otherwise
+         * throws an [UnknownPropException].
+         *
+         * @return the prop as a [Writable] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
+         */
+        inline fun <reified T> writableProp(): EnsuredProp<Writable<T>> = ensureProp<Writable<T>>()
+
+        /**
+         * Gets the [readonlyProp] by using delegated properties, enabling retrieval through the name of the property
+         * instead of typing the property name over and over again. This ensures that the prop exists, otherwise
+         * throws an [UnknownPropException].
+         *
+         * @return the prop as a [ReadOnly] type.
+         * @throws PropTypeMismatch when the type of the prop received does not match the expected type.
+         * @throws UnknownPropException when there is no prop received with the name.
+         */
+        inline fun <reified T> readonlyProp(): EnsuredProp<ReadOnly<T>> = ensureProp<ReadOnly<T>>()
+
+        /**
          * [prop] gets the [prop] with the [name] as [T] type. If there are no props with the name, and with the
          * right type, it will return [null] instead.
          *
