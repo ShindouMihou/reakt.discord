@@ -384,9 +384,9 @@ class Reakt internal constructor(
      */
     fun delete() {
         renderOnDestroy = null
-        destroy()
-
         resultingMessage?.delete()
+
+        destroy()
     }
 
     /**
