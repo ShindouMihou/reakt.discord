@@ -978,7 +978,7 @@ class Reakt internal constructor(private val api: DiscordApi, private val render
             operator fun getValue(
                 thisRef: Any?,
                 property: KProperty<*>,
-            ): Any? {
+            ): T? {
                 if (value != null) return value
                 val value = props[name ?: run {
                     name = property.name.lowercase()
