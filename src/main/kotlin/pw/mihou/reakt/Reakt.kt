@@ -388,7 +388,7 @@ class Reakt internal constructor(
         runBlocking {
             renderOnDestroy = null
             if (interactionUpdater != null) {
-                interactionUpdater?.delete()
+                interactionUpdater?.delete()?.await()
             } else {
                 resultingMessage?.delete()?.await()
             }
