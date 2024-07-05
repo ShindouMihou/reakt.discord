@@ -3,7 +3,7 @@ package pw.mihou.reakt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import org.javacord.api.DiscordApi
-import org.javacord.api.entity.DiscordEntity
+import org.javacord.api.entity.channel.TextChannel
 import org.javacord.api.entity.intent.Intent
 import org.javacord.api.entity.message.Message
 import org.javacord.api.entity.message.MessageAuthor
@@ -68,6 +68,7 @@ class Reakt internal constructor(
     private val api: DiscordApi,
     val user: User?,
     val messageAuthor: MessageAuthor?,
+    textChannel: TextChannel?,
     private val renderMode: RenderMode,
     private val lifetime: Duration = 1.days
 ) {
@@ -112,6 +113,16 @@ class Reakt internal constructor(
     private var destroySubscribers = mutableListOf<DestroySubscription>()
 
     internal var componentSessions: MutableMap<Int, ComponentStore> = mutableMapOf()
+
+    /**
+     * Gets the [TextChannel] related to this [Reakt] message. This may contain a null value when
+     * the initiation was from a User, or related Messageable instances where the text channel may
+     * not be necessarily available until the channel is opened.
+     *
+     * You can subscribe, or use [expand] on this [channel] to re-render, or be updated when
+     * the [TextChannel] is available.
+     */
+    val channel = ReadOnly(textChannel)
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
     inner class ComponentStore {
@@ -174,6 +185,15 @@ class Reakt internal constructor(
          * then this is likely an event that isn't related to messages, but rather an interaction.
          */
         val messageAuthor get() = this@Reakt.messageAuthor
+
+        /**
+         * Gets the [TextChannel] that is related to this [Reakt]'s creation. This may return null value when
+         * initiated on a Messageable, such as a User, in which we have to open a TextChannel, or related first.
+         *
+         * You can subscribe, or use [expand] on the [ReadOnly] to update whenever the [TextChannel] instance is
+         * available to be used.
+         */
+        val channel get() = this@Reakt.channel
     }
 
     companion object {
@@ -284,6 +304,10 @@ class Reakt internal constructor(
      */
     internal fun acknowledgeUpdate(message: Message) {
         this.resultingMessage = message
+
+        if (channel.get() == null) {
+            channel.set(message.channel)
+        }
 
         // Do not execute `updateSubscribes` and others when `isDestroying` because we won't
         // want any other accidental side  effects to happen, such as another state re-updating.

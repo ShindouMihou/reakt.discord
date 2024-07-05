@@ -6,7 +6,6 @@ import pw.mihou.reakt.ReaktConstructor
 import pw.mihou.reakt.SuspendingReaktConstructor
 import pw.mihou.reakt.deferrable.ReaktAutoResponse
 import pw.mihou.reakt.deferrable.autoDefer
-import pw.mihou.reakt.utils.coroutine
 import pw.mihou.reakt.utils.suspend
 import java.util.concurrent.CompletableFuture
 import kotlin.time.Duration
@@ -30,6 +29,7 @@ fun <Interaction: InteractionBase> Interaction.R(ephemeral: Boolean, lifetime: D
         api = this.api,
         user = this.user,
         messageAuthor = null,
+        textChannel = this.channel.orElseThrow(),
         Reakt.RenderMode.Interaction,
         lifetime
     )
