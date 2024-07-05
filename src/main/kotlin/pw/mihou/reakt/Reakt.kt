@@ -2,6 +2,8 @@ package pw.mihou.reakt
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.runBlocking
 import org.javacord.api.DiscordApi
 import org.javacord.api.entity.channel.TextChannel
 import org.javacord.api.entity.intent.Intent
@@ -383,10 +385,12 @@ class Reakt internal constructor(
      * [destroy], but will reset [renderOnDestroy] since there is nothing for the user to see.
      */
     fun delete() {
-        renderOnDestroy = null
-        resultingMessage?.delete()
+        runBlocking {
+            renderOnDestroy = null
+            resultingMessage?.delete()?.await()
 
-        destroy()
+            destroy()
+        }
     }
 
     /**
