@@ -387,8 +387,11 @@ class Reakt internal constructor(
     fun delete() {
         runBlocking {
             renderOnDestroy = null
-            resultingMessage?.delete()?.await()
-
+            if (interactionUpdater != null) {
+                interactionUpdater?.delete()
+            } else {
+                resultingMessage?.delete()?.await()
+            }
             destroy()
         }
     }
