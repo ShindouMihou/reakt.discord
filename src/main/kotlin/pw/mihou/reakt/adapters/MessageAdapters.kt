@@ -5,12 +5,14 @@ import pw.mihou.reakt.Reakt
 import org.javacord.api.DiscordApi
 import org.javacord.api.entity.message.Message
 import org.javacord.api.entity.message.Messageable
+import org.javacord.api.entity.user.User
 import org.javacord.api.event.message.CertainMessageEvent
 import pw.mihou.reakt.ReaktConstructor
 import pw.mihou.reakt.SuspendingReaktConstructor
 import pw.mihou.reakt.utils.coroutine
 import pw.mihou.reakt.utils.suspend
 import java.util.concurrent.CompletableFuture
+import kotlin.jvm.optionals.getOrNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 
@@ -37,7 +39,13 @@ private fun CompletableFuture<Message>.ack(react: Reakt): CompletableFuture<Mess
  */
 @JvmSynthetic
 fun CertainMessageEvent.R(lifetime: Duration = 1.hours, react: Reakt.() -> Unit): CompletableFuture<Message> {
-    val r = Reakt(this.api, Reakt.RenderMode.Message, lifetime)
+    val r = Reakt(
+        api = this.api,
+        user = this.messageAuthor.asUser().getOrNull(),
+        messageAuthor = this.messageAuthor,
+        Reakt.RenderMode.Message,
+        lifetime
+    )
     react(r)
 
     return r.messageBuilder!!
@@ -56,7 +64,13 @@ fun CertainMessageEvent.R(lifetime: Duration = 1.hours, react: Reakt.() -> Unit)
  */
 @JvmSynthetic
 fun Messageable.R(api: DiscordApi, lifetime: Duration = 1.hours, react: ReaktConstructor): CompletableFuture<Message> {
-    val r = Reakt(api, Reakt.RenderMode.Message, lifetime)
+    val r = Reakt(
+        api = api,
+        user = if (this is User) this else null,
+        messageAuthor = null,
+        Reakt.RenderMode.Message,
+        lifetime
+    )
     react(r)
 
     return r.messageBuilder!!.send(this).ack(r)
@@ -72,7 +86,13 @@ fun Messageable.R(api: DiscordApi, lifetime: Duration = 1.hours, react: ReaktCon
  * @param react the entire procedure over how rendering the response works.
  */
 fun Message.R(lifetime: Duration = 1.hours, react: ReaktConstructor): CompletableFuture<Message> {
-    val r = Reakt(api, Reakt.RenderMode.Message, lifetime)
+    val r = Reakt(
+        api = api,
+        user = this.userAuthor.getOrNull(),
+        messageAuthor = this.author,
+        Reakt.RenderMode.Message,
+        lifetime
+    )
     react(r)
 
     r.acknowledgeUpdate(this)

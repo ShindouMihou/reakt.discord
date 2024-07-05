@@ -26,7 +26,13 @@ import kotlin.time.Duration.Companion.hours
  */
 @JvmSynthetic
 fun <Interaction: InteractionBase> Interaction.R(ephemeral: Boolean, lifetime: Duration = 1.hours, reakt: ReaktConstructor): CompletableFuture<ReaktAutoResponse> {
-    val r = Reakt(this.api, Reakt.RenderMode.Interaction, lifetime)
+    val r = Reakt(
+        api = this.api,
+        user = this.user,
+        messageAuthor = null,
+        Reakt.RenderMode.Interaction,
+        lifetime
+    )
     return autoDefer(ephemeral) {
         reakt(r)
 

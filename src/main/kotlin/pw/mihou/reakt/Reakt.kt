@@ -6,6 +6,7 @@ import org.javacord.api.DiscordApi
 import org.javacord.api.entity.DiscordEntity
 import org.javacord.api.entity.intent.Intent
 import org.javacord.api.entity.message.Message
+import org.javacord.api.entity.message.MessageAuthor
 import org.javacord.api.entity.message.MessageBuilder
 import org.javacord.api.entity.message.MessageUpdater
 import org.javacord.api.entity.message.component.ActionRow
@@ -65,6 +66,8 @@ typealias SuspendingReaktConstructor = suspend Reakt.() -> Unit
  */
 class Reakt internal constructor(
     private val api: DiscordApi,
+    val user: User?,
+    val messageAuthor: MessageAuthor?,
     private val renderMode: RenderMode,
     private val lifetime: Duration = 1.days
 ) {
@@ -158,6 +161,19 @@ class Reakt internal constructor(
          * Gets the [Reakt] instance that the [Reakt.Component] was created.
          */
         val reakt get() = this@Reakt
+
+        /**
+         * Gets the [User] involved in this [Reakt.Component]'s creation. If the user is null, then
+         * you may want to try getting the message author instead since this is only available when
+         * there is a user provided, either through cache, or related.
+         */
+        val user get() = this@Reakt.user
+
+        /**
+         * Gets the [MessageAuthor] that was involved in this [Reakt]'s creation. If the message author is null,
+         * then this is likely an event that isn't related to messages, but rather an interaction.
+         */
+        val messageAuthor get() = this@Reakt.messageAuthor
     }
 
     companion object {
