@@ -1071,7 +1071,7 @@ class Reakt internal constructor(
 
                 return@run null
             } ?: return null
-            if (value::class.java != clazz && !value::class.java.isAssignableFrom(clazz)) {
+            if (!clazz.isAssignableFrom(value::class.java)) {
                 throw PropTypeMismatch(name!!, clazz, value::class.java)
             }
             @Suppress("UNCHECKED_CAST")
