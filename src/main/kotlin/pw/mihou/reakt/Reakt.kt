@@ -28,6 +28,7 @@ import pw.mihou.reakt.logger.adapters.DefaultLoggingAdapter
 import pw.mihou.reakt.logger.adapters.FastLoggingAdapter
 import pw.mihou.reakt.utils.coroutine
 import pw.mihou.reakt.uuid.UuidGenerator
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
@@ -123,6 +124,39 @@ class Reakt internal constructor(
      * the [TextChannel] is available.
      */
     val channel = ReadOnly(textChannel)
+
+    /**
+     * Requests the [user] when it is null by requesting the [MessageAuthor]'s user instance.
+     * This may return null when there is no [User] involved, such cases are when [Reakt] was
+     * started on a [TextChannel] or related Messageable instead of a [User] or through an
+     * Interaction or a [Message].
+     *
+     * The return may also be null when the author is not a regular user, such as a Discord bot
+     * or a webhook.
+     *
+     * @return A [CompletableFuture] of the [User] or null, read above description for
+     * cases when a User may be null.
+     */
+    fun requestUser(): CompletableFuture<User?> {
+        if (user != null) {
+            return CompletableFuture.completedFuture(user)
+        }
+
+        if (messageAuthor == null) {
+            return CompletableFuture.completedFuture(null)
+        }
+
+        if (!messageAuthor.isUser) {
+            return CompletableFuture.completedFuture(null)
+        }
+
+        val authorAsUser = messageAuthor.asUser().getOrNull()
+        if (authorAsUser != null) {
+            return CompletableFuture.completedFuture(authorAsUser)
+        }
+
+        return api.getUserById(messageAuthor.id)
+    }
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
     inner class ComponentStore {
