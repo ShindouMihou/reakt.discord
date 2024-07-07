@@ -211,12 +211,18 @@ class Reakt internal constructor(
          * Gets the [User] involved in this [Reakt.Component]'s creation. If the user is null, then
          * you may want to try getting the message author instead since this is only available when
          * there is a user provided, either through cache, or related.
+         *
+         * If you need the user even if it requests it, use [requestUser] instead which will check regardless of
+         * what initiated the [Reakt]'s creation, except for TextChannel origins.
          */
         val user get() = this@Reakt.user
 
         /**
          * Gets the [MessageAuthor] that was involved in this [Reakt]'s creation. If the message author is null,
          * then this is likely an event that isn't related to messages, but rather an interaction.
+         *
+         * If you need the user even if it requests it, use [requestUser] instead which will check regardless of
+         * what initiated the [Reakt]'s creation, except for TextChannel origins.
          */
         val messageAuthor get() = this@Reakt.messageAuthor
 
