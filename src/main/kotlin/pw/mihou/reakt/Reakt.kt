@@ -1123,18 +1123,12 @@ class Reakt internal constructor(
         }
         private val hashCode by lazy {
             var result = 1
-
-            fun inc(vararg elements: Any?) {
-                for (element in elements) {
-                    result = 31 * result + (element?.hashCode() ?: 0)
+            props.entries
+                .filterNot { it.key.endsWith(RESERVED_VALUE_KEY) }
+                .forEach { (key, value) ->
+                    result = 31 * result + (key.hashCode() + (value?.hashCode() ?: 0))
                 }
-            }
-            for ((key, value) in props) {
-                // when dealing with writable's origin value, ignore it.
-                if (key.endsWith(RESERVED_VALUE_KEY)) continue
-                inc(key, value)
-            }
-            inc(qualifiedName)
+            result = 31 * result + qualifiedName.hashCode()
             return@lazy result
         }
 
