@@ -1121,7 +1121,7 @@ class Reakt internal constructor(
                 ComponentStore()
             }
         }
-        private val hashCode get(): Int {
+        private val hashCode by lazy {
             var result = 1
 
             fun inc(vararg elements: Any?) {
@@ -1135,7 +1135,7 @@ class Reakt internal constructor(
                 inc(key, value)
             }
             inc(qualifiedName)
-            return result
+            return@lazy result
         }
 
         /**
