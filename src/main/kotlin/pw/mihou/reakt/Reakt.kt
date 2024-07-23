@@ -13,6 +13,7 @@ import org.javacord.api.entity.message.component.ActionRow
 import org.javacord.api.entity.message.component.LowLevelComponent
 import org.javacord.api.entity.message.embed.EmbedBuilder
 import org.javacord.api.entity.user.User
+import org.javacord.api.exception.UnknownMessageException
 import org.javacord.api.interaction.callback.InteractionOriginalResponseUpdater
 import org.javacord.api.listener.GloballyAttachableListener
 import org.javacord.api.listener.message.MessageDeleteListener
@@ -446,9 +447,13 @@ class Reakt internal constructor(
             return
         }
 
-        // we don't free references here because ::acknowledgeUpdate will see [isDestroying] as [true] and
-        // will free references once it is updated, ensuring the update gets through.
-        rerender(renderOnDestroy)
+        try {
+            // we don't free references here because ::acknowledgeUpdate will see [isDestroying] as [true] and
+            // will free references once it is updated, ensuring the update gets through.
+            rerender(renderOnDestroy)
+        } catch (_: UnknownMessageException) {
+            // Ignore `UnknownMessageException` since this means the message was already deleted before the clean up.
+        }
     }
 
     /**
