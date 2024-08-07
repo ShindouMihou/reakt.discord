@@ -452,6 +452,7 @@ class Reakt internal constructor(
             // will free references once it is updated, ensuring the update gets through.
             rerender(renderOnDestroy)
         } catch (_: UnknownMessageException) {
+            freeReferences()
             // Ignore `UnknownMessageException` since this means the message was already deleted before the clean up.
         }
     }
