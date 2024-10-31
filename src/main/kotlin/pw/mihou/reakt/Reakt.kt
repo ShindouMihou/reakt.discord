@@ -635,6 +635,7 @@ class Reakt internal constructor(
 
     @Suppress("NOTHING_TO_INLINE")
     internal inline fun detectInvalidWritableDeclaration() {
+        if (mode == Mode.PRODUCTION) return
         val isInsideRenderMethod =
             StackWalker.getInstance().walk { stream ->
                 val frame =
