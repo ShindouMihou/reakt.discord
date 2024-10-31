@@ -1392,9 +1392,7 @@ class Reakt internal constructor(
                 view.uuids += uuid
             }
 
-            if (textContent != null) {
-                view.contents = textContent
-            }
+            view.contents = textContent
         }
     }
 
