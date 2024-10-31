@@ -27,6 +27,7 @@ import pw.mihou.reakt.exceptions.*
 import pw.mihou.reakt.logger.LoggingAdapter
 import pw.mihou.reakt.logger.adapters.DefaultLoggingAdapter
 import pw.mihou.reakt.logger.adapters.FastLoggingAdapter
+import pw.mihou.reakt.settings.Mode
 import pw.mihou.reakt.utils.coroutine
 import pw.mihou.reakt.uuid.UuidGenerator
 import java.util.concurrent.CompletableFuture
@@ -269,6 +270,17 @@ class Reakt internal constructor(
          */
         @JvmField @Volatile
         var autoDeferAfterMilliseconds: Long = 2350
+
+        /**
+         * Specifies the mode that Reakt should be in, this can be either [Mode.DEBUG] or [Mode.PRODUCTION].
+         * During [Mode.DEBUG], Reakt will have stricter analysis, such as having the "no state creation inside
+         * render methods" and related, which will slow down performance, but will make it safer to debug problems.
+         *
+         * Meanwhile, in [Mode.PRODUCTION], Reakt will disable specific features that are best for debug only,
+         * enabling some performance gains, but losing some safeties.
+         */
+        @JvmField @Volatile
+        var mode: Mode = Mode.DEBUG
 
         internal const val RESERVED_VALUE_KEY = "&[value\$]"
 
@@ -623,6 +635,7 @@ class Reakt internal constructor(
 
     @Suppress("NOTHING_TO_INLINE")
     internal inline fun detectInvalidWritableDeclaration() {
+        if (mode == Mode.PRODUCTION) return
         val isInsideRenderMethod =
             StackWalker.getInstance().walk { stream ->
                 val frame =
@@ -1379,9 +1392,7 @@ class Reakt internal constructor(
                 view.uuids += uuid
             }
 
-            if (textContent != null) {
-                view.contents = textContent
-            }
+            view.contents = textContent
         }
     }
 
