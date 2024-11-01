@@ -1489,7 +1489,7 @@ class Reakt internal constructor(
                 ReaktMessage.with {
                     this.removeAllEmbeds()
                     this.removeAllComponents()
-                    this.setContent(null)
+                    this.setContent("")
 
                     if (embeds.isNotEmpty()) {
                         this.addEmbeds(embeds)
@@ -1512,7 +1512,7 @@ class Reakt internal constructor(
             updater.apply {
                 this.removeAllEmbeds()
                 this.removeAllComponents()
-                this.setContent(null)
+                this.setContent("")
 
                 if (embeds.isNotEmpty()) {
                     this.addEmbeds(embeds)
@@ -1533,7 +1533,7 @@ class Reakt internal constructor(
             builder.apply {
                 this.removeAllEmbeds()
                 this.removeAllComponents()
-                this.setContent(null)
+                this.setContent("")
 
                 if (embeds.isNotEmpty()) {
                     this.addEmbeds(embeds)
@@ -1554,7 +1554,7 @@ class Reakt internal constructor(
             updater.apply {
                 this.removeAllEmbeds()
                 this.removeAllComponents()
-                this.setContent(null)
+                this.setContent("")
 
                 if (embeds.isNotEmpty()) {
                     this.addEmbeds(embeds)
