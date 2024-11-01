@@ -1399,7 +1399,9 @@ class Reakt internal constructor(
                 view.uuids += uuid
             }
 
-            view.contents = textContent
+            if (textContent != null) {
+                view.contents = textContent
+            }
         }
     }
 
@@ -1486,7 +1488,12 @@ class Reakt internal constructor(
             return attachListeners(api) to
                 ReaktMessage.with {
                     this.removeAllEmbeds()
-                    this.addEmbeds(embeds)
+                    this.removeAllComponents()
+                    this.setContent(null)
+
+                    if (embeds.isNotEmpty()) {
+                        this.addEmbeds(embeds)
+                    }
 
                     if (contents != null) {
                         this.setContent(contents)
@@ -1504,7 +1511,12 @@ class Reakt internal constructor(
         ): Unsubscribe {
             updater.apply {
                 this.removeAllEmbeds()
-                this.addEmbeds(embeds)
+                this.removeAllComponents()
+                this.setContent(null)
+
+                if (embeds.isNotEmpty()) {
+                    this.addEmbeds(embeds)
+                }
 
                 if (contents != null) {
                     this.setContent(contents)
@@ -1520,7 +1532,12 @@ class Reakt internal constructor(
         ): Unsubscribe {
             builder.apply {
                 this.removeAllEmbeds()
-                this.addEmbeds(embeds)
+                this.removeAllComponents()
+                this.setContent(null)
+
+                if (embeds.isNotEmpty()) {
+                    this.addEmbeds(embeds)
+                }
 
                 if (contents != null) {
                     this.setContent(contents)
@@ -1537,8 +1554,11 @@ class Reakt internal constructor(
             updater.apply {
                 this.removeAllEmbeds()
                 this.removeAllComponents()
+                this.setContent(null)
 
-                this.addEmbeds(embeds)
+                if (embeds.isNotEmpty()) {
+                    this.addEmbeds(embeds)
+                }
 
                 if (contents != null) {
                     this.setContent(contents)
