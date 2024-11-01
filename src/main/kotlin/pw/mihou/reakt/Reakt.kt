@@ -2,6 +2,7 @@ package pw.mihou.reakt
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.future.await
 import org.javacord.api.DiscordApi
 import org.javacord.api.entity.channel.TextChannel
 import org.javacord.api.entity.intent.Intent
@@ -438,7 +439,14 @@ class Reakt internal constructor(
     fun delete() {
         renderOnDestroy = null
         resultingMessage?.delete()
-        destroy()
+            ?.exceptionally { ex ->
+                logger.error("Failed to delete message with the following stacktrace.", ex)
+                return@exceptionally null
+            }
+            ?.thenAccept { destroy() }
+        if (resultingMessage == null) {
+            destroy()
+        }
     }
 
     /**
