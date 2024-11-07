@@ -297,9 +297,9 @@ class Reakt internal constructor(
             if (message.contains("COMPONENT_CUSTOM_ID_DUPLICATED")) {
                 throw ReaktComponentDuplicateException(message)
             } else {
-                logger.error("Failed to re-render message using Reakt with the following stacktrace.", exception)
+                logger.error("Failed to render message using Reakt with the following stacktrace.", exception)
+                throw exception
             }
-            return null
         }
     }
 
